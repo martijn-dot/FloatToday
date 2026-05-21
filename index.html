@@ -97,6 +97,12 @@
     .booking-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .booking-chip-hours { font-family: 'JetBrains Mono', monospace; opacity: 0.72; flex-shrink: 0; }
     .booking-arrow { width: 10px; height: 10px; color: #C3CAD6; flex-shrink: 0; }
+    .tentative-badge {
+      display: inline-flex; align-items: center; height: 16px; padding: 0 6px;
+      border-radius: 5px; background: #F3E8FE; color: #7E22CE;
+      font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.35px;
+      margin-left: 6px; vertical-align: 1px;
+    }
 
     .notes-btn { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; transition: all 0.15s; }
     .hours-badge { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 6px; white-space: nowrap; margin-left: 4px; }
@@ -215,6 +221,7 @@ function hasN(n){return n&&n!=='—'&&n.trim().length>0;}
 function sortT(r){const a=r.filter(x=>x.startTime),b=r.filter(x=>!x.startTime);a.sort((x,y)=>t2m(x.startTime)-t2m(y.startTime));return[...a,...b];}
 function knownResource(row){const r=String(row.resource||'').trim();return r&&r!=='Unknown resource'&&!/^Person \d+$/i.test(r)&&!/^Unknown/i.test(r);}
 function visibleRows(){return S.rows.filter(knownResource);}
+function withOrder(rows){return rows.map((r,i)=>({...r,order:Number.isFinite(Number(r.order))?Number(r.order):i}));}
 function matchesQuery(row,q){if(!q)return true;return [row.project,row.resource].some(v=>String(v||'').toLowerCase().includes(q));}
 function filterRows(rows){const q=S.query.trim().toLowerCase();return rows.filter(r=>knownResource(r)&&matchesQuery(r,q));}
 function nest(rows){const om={};rows.forEach(r=>{if(!om[r.owner])om[r.owner]={name:r.owner,projects:{},th:0};const o=om[r.owner];o.th+=Number(r.hours)||0;if(!o.projects[r.project])o.projects[r.project]={name:r.project,res:[],th:0};const p=o.projects[r.project];p.th+=Number(r.hours)||0;p.res.push(r);});return Object.values(om).map(o=>({...o,projects:Object.values(o.projects).map(p=>({...p,res:sortT(p.res)}))}));}
@@ -223,21 +230,24 @@ function live(){return !mockMode();}
 function esc(s){return String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ');}
 function html(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function colorForKey(k){let h=0;String(k||'').split('').forEach(ch=>h=(h*31+ch.charCodeAt(0))|0);return OC[Math.abs(h)%OC.length];}
-function bookingOrderValue(row){return row.startTime?t2m(row.startTime):100000+(Number(row.hours)||0);}
+function projectHex(row){const raw=String(row.projectColor||'').replace('#','').trim();return /^[0-9a-f]{6}$/i.test(raw)?`#${raw}`:null;}
+function textForBg(hex){if(!hex)return null;const n=parseInt(hex.slice(1),16);const r=(n>>16)&255,g=(n>>8)&255,b=n&255;return ((r*299+g*587+b*114)/1000)>150?'#1a1a2e':'#fff';}
+function chipColors(row){const hex=projectHex(row);if(hex)return{bg:hex,border:hex,text:textForBg(hex),dot:textForBg(hex)};const c=colorForKey(row.project);return{bg:c.bg,border:`${c.a}33`,text:c.t,dot:c.a};}
+function bookingOrderValue(row){return row.startTime?t2m(row.startTime):100000+(Number.isFinite(Number(row.sortOrder))?Number(row.sortOrder):Number(row.order)||0);}
 function dayBookingsFor(row){
   return visibleRows()
     .filter(x=>x.resource===row.resource)
-    .sort((a,b)=>bookingOrderValue(a)-bookingOrderValue(b)||String(a.project).localeCompare(String(b.project)));
+    .sort((a,b)=>bookingOrderValue(a)-bookingOrderValue(b)||Number(a.order)-Number(b.order));
 }
 function renderDayTimeline(row){
   const bookings=dayBookingsFor(row);
   const hasOther=bookings.some(b=>b!==row&&b.project!==row.project);
   const labels=bookings.map((b,idx)=>{
-    const c=colorForKey(b.project);
+    const c=chipColors(b);
     const current=b===row;
     const detail=`${fmtTR(b.startTime,b.endTime)||'All day'} · ${b.taskName||'Booking'} (${b.hours||0}h)`;
-    const chip=`<div class="booking-chip ${current?'current':''}" title="${html(detail)}" ${current?'':`style="border-color:${c.a}33;background:${c.bg};color:${c.t};"`}>
-      <span class="booking-chip-dot" style="background:${c.a};"></span>
+    const chip=`<div class="booking-chip ${current?'current':''}" title="${html(detail)}" ${current?'':`style="border-color:${c.border};background:${c.bg};color:${c.text};"`}>
+      <span class="booking-chip-dot" style="background:${c.dot};"></span>
       <span class="booking-chip-name">${current?'This project':html(b.project||'Untitled project')}</span>
       <span class="booking-chip-hours">${Number(b.hours)||0}h</span>
     </div>`;
@@ -253,7 +263,7 @@ function closeSettings(){document.getElementById('settingsModal').classList.remo
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
 
 async function fetchData(force=false){
-  if(!live()){S.rows=MOCK;S.nested=nest(MOCK);S.lastUpdated=new Date();S.error=null;render();return;}
+  if(!live()){S.rows=withOrder(MOCK);S.nested=nest(S.rows);S.lastUpdated=new Date();S.error=null;render();return;}
   S.loading=true;S.error=null;render();
   try{
     const u=new URL('/api/float',window.location.origin);
@@ -265,7 +275,7 @@ async function fetchData(force=false){
     const r=await fetch(u,{cache:force?'no-store':'default',headers:force?{'Cache-Control':'no-cache','Pragma':'no-cache'}:{}});
     const j=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-    S.rows=j.rows||[];S.nested=nest(S.rows);S.lastUpdated=new Date();
+    S.rows=withOrder(j.rows||[]);S.nested=nest(S.rows);S.lastUpdated=new Date();
   }
   catch(e){S.error=e.message;}
   finally{S.loading=false;render();}
@@ -373,7 +383,7 @@ function render(){
 
             h+=`<div><div class="resource-row ${ri%2===0?'even':'odd'}">`;
             h+=`<div class="time-col">${tr?`<div class="mono" style="font-size:11px;font-weight:500;color:${c.a};line-height:1.4;">${tr}</div>`:`<div style="font-size:10px;font-weight:600;color:#C4CAD8;text-transform:uppercase;letter-spacing:0.4px;">All day</div>`}</div>`;
-            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div>${renderDayTimeline(r)}</div></div>`;
+            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}${r.tentative?'<span class="tentative-badge">Tentative</span>':''}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div>${renderDayTimeline(r)}</div></div>`;
             h+=`<div style="margin-left:8px;width:28px;display:flex;justify-content:center;">`;
             if(sn) h+=`<button class="notes-btn" onclick="toggleN('${esc(nk)}',event)" title="${no?'Hide notes':'Show notes'}" style="border:1.5px solid ${no?c.a:'#D8DCE4'};background:${no?c.a+'0D':'transparent'};color:${no?c.a:'#9CA3B4'};"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 2.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M5 5.5h4M5 7.5h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>`;
             h+=`</div>`;

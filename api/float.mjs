@@ -50,8 +50,23 @@ function projectName(project) {
   return project.name || project.project_name || `Project ${project.project_id || project.id}`;
 }
 
+function projectColor(project) {
+  const raw = String(project?.color || "").replace("#", "").trim();
+  return /^[0-9a-f]{6}$/i.test(raw) ? raw : null;
+}
+
 function taskName(task) {
   return task.name || task.task_name || task.phase_name || "Allocation";
+}
+
+function isTentative(task) {
+  const status = String(task.status ?? task.status_id ?? "").toLowerCase();
+  return status === "1" || status === "tentative" || task.tentative === 1 || task.tentative === true;
+}
+
+function sortOrder(task, fallback) {
+  const value = task.sort_order ?? task.order ?? task.task_order ?? task.priority ?? task.position;
+  return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
 
 function ownerId(project) {
@@ -194,7 +209,6 @@ export default {
       const tasks = await floatFetchAll("/tasks", token, {
         start_date: date,
         end_date: date,
-        sort: "start_date",
       });
 
       const projectsById = await lookupById("/projects", token, tasks.map((task) => task.project_id));
@@ -206,13 +220,14 @@ export default {
       ]);
 
       const rows = tasks
-        .map((task) => {
+        .map((task, index) => {
           const project = projectsById[String(task.project_id)];
           const person = peopleById[String(task.people_id)];
           const resource = displayName(person);
           return {
             resource,
             project: projectName(project),
+            projectColor: projectColor(project),
             owner: ownerName(project, peopleById, accountsById),
             taskName: taskName(task),
             notes: task.notes || "",
@@ -221,6 +236,9 @@ export default {
             endDate: task.end_date || date,
             startTime: pickTime(task, "startTime"),
             endTime: pickTime(task, "endTime"),
+            tentative: isTentative(task),
+            sortOrder: sortOrder(task, index),
+            order: index,
           };
         })
         .filter((row) => row.resource && row.resource !== "Unknown resource" && !/^Person \d+$/i.test(row.resource));
