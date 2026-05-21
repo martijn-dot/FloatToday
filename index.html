@@ -102,7 +102,8 @@
     .hours-badge { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 6px; white-space: nowrap; margin-left: 4px; }
     .notes-panel { padding: 0 16px 12px 142px; font-size: 12px; line-height: 1.6; color: #5A6378; }
     .notes-content { background: #F5F6F8; border-radius: 6px; padding: 10px 14px; }
-    .search-wrap { position: relative; margin-bottom: 18px; }
+    .toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-bottom: 18px; }
+    .search-wrap { position: relative; }
     .search-wrap svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9CA3B4; pointer-events: none; }
     .search-input {
       width: 100%; height: 42px; border-radius: 10px; border: 1px solid #E0E4EA;
@@ -117,6 +118,13 @@
       color: #9CA3B4; cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
     .clear-search:hover { background: #F0F1F4; color: #5A6378; }
+    .date-picker {
+      height: 42px; min-width: 156px; border-radius: 10px; border: 1px solid #E0E4EA;
+      background: #fff; color: #2D3340; padding: 0 12px;
+      font: 600 13px 'DM Sans', sans-serif; outline: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .date-picker:focus { border-color: #1A56DB; box-shadow: 0 0 0 3px rgba(26,86,219,0.08); }
 
     .chev { transition: transform 0.2s; }
     .chev.closed { transform: rotate(-90deg); }
@@ -136,6 +144,7 @@
 
     @media (max-width: 720px) {
       body { padding: 20px 12px; }
+      .toolbar { grid-template-columns: 1fr; }
       .stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
       .resource-row { grid-template-columns: 76px 1fr auto; align-items: flex-start; }
       .notes-panel { padding-left: 104px; }
@@ -168,6 +177,7 @@ let S = {
   rows: [], nested: [], loading: false, error: null,
   lastUpdated: null, collapsed: {}, notes: {},
   query: '',
+  date: today(),
 };
 
 const MOCK = [
@@ -245,7 +255,7 @@ function toast(m){const t=document.getElementById('toast');t.textContent=m;t.cla
 async function fetchData(){
   if(!live()){S.rows=MOCK;S.nested=nest(MOCK);S.lastUpdated=new Date();S.error=null;render();return;}
   S.loading=true;S.error=null;render();
-  try{const r=await fetch(`/api/float?date=${today()}`);const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);S.rows=j.rows||[];S.nested=nest(S.rows);S.lastUpdated=new Date();}
+  try{const r=await fetch(`/api/float?date=${S.date}`);const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);S.rows=j.rows||[];S.nested=nest(S.rows);S.lastUpdated=new Date();}
   catch(e){S.error=e.message;}
   finally{S.loading=false;render();}
 }
@@ -256,10 +266,11 @@ function toggleN(k,ev){ev.stopPropagation();S.notes[k]=!S.notes[k];render();}
 function focusSearch(){requestAnimationFrame(()=>{const i=document.querySelector('.search-input');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}});}
 function setSearch(v){S.query=v;render();focusSearch();}
 function clearSearch(){S.query='';render();focusSearch();}
+function setDate(v){if(!v)return;S.date=v;S.collapsed={};S.notes={};fetchData();}
 
 function render(){
   const rows=filterRows(S.rows), d=nest(rows);
-  const ds=live()?today():"2026-05-13";
+  const ds=S.date;
   const dt=fmtDate(ds);
   const th=d.reduce((s,o)=>s+o.th,0);
   const ur=new Set(rows.map(r=>r.resource)).size;
@@ -298,10 +309,13 @@ function render(){
 
   if(S.error) h+=`<div class="error-banner">Failed to load: ${html(S.error)}</div>`;
 
-  h+=`<div class="search-wrap">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <input class="search-input" value="${html(S.query)}" oninput="setSearch(this.value)" placeholder="Search projects or resources" />
-    ${S.query?`<button class="clear-search" onclick="clearSearch()" title="Clear search"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>`:''}
+  h+=`<div class="toolbar">
+    <div class="search-wrap">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input class="search-input" value="${html(S.query)}" oninput="setSearch(this.value)" placeholder="Search projects or resources" />
+      ${S.query?`<button class="clear-search" onclick="clearSearch()" title="Clear search"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>`:''}
+    </div>
+    <input class="date-picker" type="date" value="${html(S.date)}" onchange="setDate(this.value)" title="Select date" />
   </div>`;
 
   // Stats
