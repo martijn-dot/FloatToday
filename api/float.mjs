@@ -33,7 +33,34 @@ function taskName(task) {
   return task.name || task.task_name || task.phase_name || "Allocation";
 }
 
-function ownerName(project) {
+function ownerId(project) {
+  const ownerCandidates = [
+    project?.owner,
+    project?.project_owner,
+    project?.project_manager,
+    project?.manager,
+  ];
+  const ownerValue = ownerCandidates.find((value) => {
+    if (!value) return false;
+    if (typeof value === "number") return true;
+    if (typeof value === "string") return /^\d+$/.test(value);
+    return value.id || value.people_id || value.person_id;
+  });
+  if (ownerValue) {
+    if (typeof ownerValue === "number" || typeof ownerValue === "string") return String(ownerValue);
+    return String(ownerValue.id || ownerValue.people_id || ownerValue.person_id);
+  }
+
+  const id =
+    project?.owner_id ||
+    project?.project_owner_id ||
+    project?.project_manager_id ||
+    project?.manager_id ||
+    project?.created_by;
+  return id ? String(id) : null;
+}
+
+function ownerName(project, peopleById = {}) {
   const owner =
     project?.owner ||
     project?.project_owner ||
@@ -46,8 +73,10 @@ function ownerName(project) {
     project?.created_by_name;
 
   if (!owner) return "Unassigned owner";
-  if (typeof owner === "string") return owner;
-  if (typeof owner === "number") return `Owner ${owner}`;
+  if (typeof owner === "number") return displayName(peopleById[String(owner)] || null);
+  if (typeof owner === "string") {
+    return /^\d+$/.test(owner) ? displayName(peopleById[owner] || null) : owner;
+  }
   return displayName(owner);
 }
 
@@ -143,8 +172,11 @@ export default {
         sort: "start_date",
       });
 
-      const peopleById = await lookupById("/people", token, tasks.map((task) => task.people_id));
       const projectsById = await lookupById("/projects", token, tasks.map((task) => task.project_id));
+      const peopleById = await lookupById("/people", token, [
+        ...tasks.map((task) => task.people_id),
+        ...Object.values(projectsById).map(ownerId),
+      ]);
 
       const rows = tasks.map((task) => {
         const project = projectsById[String(task.project_id)];
@@ -152,7 +184,7 @@ export default {
         return {
           resource: displayName(person),
           project: projectName(project),
-          owner: ownerName(project),
+          owner: ownerName(project, peopleById),
           taskName: taskName(task),
           notes: task.notes || "",
           hours: Number(task.hours) || 0,

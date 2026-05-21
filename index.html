@@ -13,7 +13,7 @@
       min-height: 100vh; padding: 32px 24px;
     }
     .mono { font-family: 'JetBrains Mono', monospace; }
-    .container { max-width: 880px; margin: 0 auto; }
+    .container { max-width: 920px; margin: 0 auto; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     .spinning svg { animation: spin 0.8s linear infinite; }
 
@@ -75,14 +75,17 @@
     .project-card { border-radius: 8px; border: 1px solid #E8EBF0; overflow: hidden; }
     .project-header { display: flex; align-items: center; gap: 10px; padding: 11px 16px; background: #F7F8FA; cursor: pointer; user-select: none; }
 
-    .resource-row { display: grid; grid-template-columns: 88px minmax(180px, 1fr) minmax(190px, 270px) auto auto; align-items: center; gap: 10px; padding: 10px 16px 10px 20px; border-top: 1px solid #F0F1F4; font-size: 13px; }
+    .resource-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px 16px 10px 20px; border-top: 1px solid #F0F1F4; font-size: 13px; }
     .resource-row.even { background: #fff; }
     .resource-row.odd { background: #FBFCFD; }
 
     .time-col { padding-right: 14px; border-right: 2px solid #E8EBF0; margin-right: 14px; min-height: 28px; display: flex; align-items: center; }
     .res-avatar { width: 28px; height: 28px; border-radius: 50%; background: #E8EBF0; color: #5A6378; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
-    .other-bookings { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
-    .other-bookings.empty { justify-content: flex-end; color: #B0B8C8; font-size: 11px; font-weight: 600; }
+    .resource-info { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+    .resource-main { min-width: 0; overflow: hidden; }
+    .resource-name, .task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .other-bookings { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; margin-top: 6px; }
+    .other-bookings.empty .booking-chip { border-color: #E0E4EA; background: #F5F6F8; color: #8A94A6; }
     .booking-chip {
       display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 130px;
       padding: 4px 7px; border-radius: 7px; border: 1px solid;
@@ -96,6 +99,21 @@
     .hours-badge { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 6px; white-space: nowrap; margin-left: 4px; }
     .notes-panel { padding: 0 16px 12px 142px; font-size: 12px; line-height: 1.6; color: #5A6378; }
     .notes-content { background: #F5F6F8; border-radius: 6px; padding: 10px 14px; }
+    .search-wrap { position: relative; margin-bottom: 18px; }
+    .search-wrap svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9CA3B4; pointer-events: none; }
+    .search-input {
+      width: 100%; height: 42px; border-radius: 10px; border: 1px solid #E0E4EA;
+      background: #fff; color: #2D3340; padding: 0 42px;
+      font: 600 13px 'DM Sans', sans-serif; outline: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .search-input:focus { border-color: #1A56DB; box-shadow: 0 0 0 3px rgba(26,86,219,0.08); }
+    .clear-search {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      width: 24px; height: 24px; border: none; border-radius: 6px; background: transparent;
+      color: #9CA3B4; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .clear-search:hover { background: #F0F1F4; color: #5A6378; }
 
     .chev { transition: transform 0.2s; }
     .chev.closed { transform: rotate(-90deg); }
@@ -117,7 +135,6 @@
       body { padding: 20px 12px; }
       .stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
       .resource-row { grid-template-columns: 76px 1fr auto; align-items: flex-start; }
-      .other-bookings { grid-column: 2 / -1; }
       .notes-panel { padding-left: 104px; }
     }
   </style>
@@ -147,6 +164,7 @@
 let S = {
   rows: [], nested: [], loading: false, error: null,
   lastUpdated: null, collapsed: {}, notes: {},
+  query: '',
 };
 
 const MOCK = [
@@ -182,8 +200,11 @@ function fmtT(t){if(!t)return null;const[h,m]=t.split(':');return m==='00'?`${pa
 function fmtTR(s,e){if(!s)return null;return e?`${fmtT(s)} – ${fmtT(e)}`:fmtT(s);}
 function hasN(n){return n&&n!=='—'&&n.trim().length>0;}
 function sortT(r){const a=r.filter(x=>x.startTime),b=r.filter(x=>!x.startTime);a.sort((x,y)=>t2m(x.startTime)-t2m(y.startTime));return[...a,...b];}
+function matchesQuery(row,q){if(!q)return true;return [row.project,row.resource].some(v=>String(v||'').toLowerCase().includes(q));}
+function filterRows(rows){const q=S.query.trim().toLowerCase();return rows.filter(r=>matchesQuery(r,q));}
 function nest(rows){const om={};rows.forEach(r=>{if(!om[r.owner])om[r.owner]={name:r.owner,projects:{},th:0};const o=om[r.owner];o.th+=Number(r.hours)||0;if(!o.projects[r.project])o.projects[r.project]={name:r.project,res:[],th:0};const p=o.projects[r.project];p.th+=Number(r.hours)||0;p.res.push(r);});return Object.values(om).map(o=>({...o,projects:Object.values(o.projects).map(p=>({...p,res:sortT(p.res)}))}));}
-function live(){return window.location.protocol!=='file:';}
+function mockMode(){return window.location.protocol==='file:'||new URLSearchParams(window.location.search).has('mock');}
+function live(){return !mockMode();}
 function esc(s){return String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ');}
 function html(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function colorForKey(k){let h=0;String(k||'').split('').forEach(ch=>h=(h*31+ch.charCodeAt(0))|0);return OC[Math.abs(h)%OC.length];}
@@ -201,7 +222,7 @@ function otherBookingsFor(row){
 }
 function renderOtherBookings(row){
   const others=otherBookingsFor(row);
-  if(!others.length)return `<div class="other-bookings empty">No other projects</div>`;
+  if(!others.length)return `<div class="other-bookings empty"><div class="booking-chip"><span class="booking-chip-name">No other projects</span></div></div>`;
   return `<div class="other-bookings">${others.map(o=>{
     const c=colorForKey(o.project);
     const detail=o.items.map(i=>`${fmtTR(i.startTime,i.endTime)||'All day'} · ${i.taskName||'Booking'} (${i.hours||0}h)`).join('\n');
@@ -228,9 +249,12 @@ async function fetchData(){
 function toggleO(n){S.collapsed[n]=!S.collapsed[n];render();}
 function toggleP(k){S.collapsed[k]=!S.collapsed[k];render();}
 function toggleN(k,ev){ev.stopPropagation();S.notes[k]=!S.notes[k];render();}
+function focusSearch(){requestAnimationFrame(()=>{const i=document.querySelector('.search-input');if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length);}});}
+function setSearch(v){S.query=v;render();focusSearch();}
+function clearSearch(){S.query='';render();focusSearch();}
 
 function render(){
-  const d=S.nested, rows=S.rows;
+  const rows=filterRows(S.rows), d=nest(rows);
   const ds=live()?today():"2026-05-13";
   const dt=fmtDate(ds);
   const th=d.reduce((s,o)=>s+o.th,0);
@@ -270,6 +294,12 @@ function render(){
 
   if(S.error) h+=`<div class="error-banner">Failed to load: ${html(S.error)}</div>`;
 
+  h+=`<div class="search-wrap">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.6"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <input class="search-input" value="${html(S.query)}" oninput="setSearch(this.value)" placeholder="Search projects or resources" />
+    ${S.query?`<button class="clear-search" onclick="clearSearch()" title="Clear search"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></button>`:''}
+  </div>`;
+
   // Stats
   h+=`<div class="stats-row">`;
   [{l:"Owners",v:d.length,c:"#1A56DB"},{l:"Bookings",v:rows.length,c:"#D97706"},{l:"Resources",v:ur,c:"#16A34A"},{l:"Total Hours",v:th,c:"#9333EA"}].forEach(s=>{
@@ -278,7 +308,7 @@ function render(){
   h+=`</div>`;
 
   if(S.loading&&!rows.length) h+=`<div style="text-align:center;padding:60px 0;color:#8892A4;font-size:14px;">Fetching schedule from Float…</div>`;
-  else if(!S.loading&&!rows.length&&!S.error) h+=`<div style="text-align:center;padding:60px 0;color:#8892A4;font-size:14px;">No bookings found for this date.</div>`;
+  else if(!S.loading&&!rows.length&&!S.error) h+=`<div style="text-align:center;padding:60px 0;color:#8892A4;font-size:14px;">${S.query?'No bookings match your search.':'No bookings found for this date.'}</div>`;
 
   h+=`<div ${S.loading?'class="fade"':''}>`;
   d.forEach((owner,oi)=>{
@@ -314,8 +344,7 @@ function render(){
 
             h+=`<div><div class="resource-row ${ri%2===0?'even':'odd'}">`;
             h+=`<div class="time-col">${tr?`<div class="mono" style="font-size:11px;font-weight:500;color:${c.a};line-height:1.4;">${tr}</div>`:`<div style="font-size:10px;font-weight:600;color:#C4CAD8;text-transform:uppercase;letter-spacing:0.4px;">All day</div>`}</div>`;
-            h+=`<div style="display:flex;align-items:center;gap:10px;min-width:0;"><div class="res-avatar">${html(ini(r.resource))}</div><div style="min-width:0;overflow:hidden;"><div style="font-weight:600;color:#2D3340;">${html(r.resource)}</div><div style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div></div></div>`;
-            h+=renderOtherBookings(r);
+            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div>${renderOtherBookings(r)}</div></div>`;
             h+=`<div style="margin-left:8px;width:28px;display:flex;justify-content:center;">`;
             if(sn) h+=`<button class="notes-btn" onclick="toggleN('${esc(nk)}',event)" title="${no?'Hide notes':'Show notes'}" style="border:1.5px solid ${no?c.a:'#D8DCE4'};background:${no?c.a+'0D':'transparent'};color:${no?c.a:'#9CA3B4'};"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 2.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M5 5.5h4M5 7.5h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>`;
             h+=`</div>`;
