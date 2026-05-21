@@ -122,6 +122,28 @@ function pickTime(task, key) {
   return task[key] || task[key.replace("Time", "_time")] || null;
 }
 
+function minutes(time) {
+  if (!time) return null;
+  const [hours, mins] = String(time).split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(mins)) return null;
+  return hours * 60 + mins;
+}
+
+function timeFromMinutes(value) {
+  const hours = Math.floor(value / 60) % 24;
+  const mins = Math.round(value % 60);
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+}
+
+function endTime(task) {
+  const explicit = pickTime(task, "endTime");
+  const start = pickTime(task, "startTime");
+  const startMinutes = minutes(start);
+  const hours = Number(task.hours) || 0;
+  if (explicit || startMinutes === null || !hours) return explicit;
+  return timeFromMinutes(startMinutes + hours * 60);
+}
+
 async function floatFetch(path, token, params = {}) {
   const url = new URL(`${FLOAT_API_BASE}${path}`);
   Object.entries(params).forEach(([key, value]) => {
@@ -235,7 +257,7 @@ export default {
             startDate: task.start_date || date,
             endDate: task.end_date || date,
             startTime: pickTime(task, "startTime"),
-            endTime: pickTime(task, "endTime"),
+            endTime: endTime(task),
             tentative: isTentative(task),
             sortOrder: sortOrder(task, index),
             order: index,

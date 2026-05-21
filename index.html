@@ -94,6 +94,7 @@
     .booking-chip.current { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
     .booking-chip-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
     .booking-chip.current .booking-chip-dot { background: #fff !important; }
+    .booking-chip.current .booking-chip-hours { opacity: 1; color: #fff; }
     .booking-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .booking-chip-hours { font-family: 'JetBrains Mono', monospace; opacity: 0.72; flex-shrink: 0; }
     .booking-arrow { width: 10px; height: 10px; color: #C3CAD6; flex-shrink: 0; }
@@ -215,8 +216,10 @@ function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMon
 function fmtDate(s){const d=new Date(s+'T00:00:00');return{dn:DN[d.getDay()],day:d.getDate(),mo:MN[d.getMonth()],yr:d.getFullYear()};}
 function ini(n){return String(n||'').split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2)||'?';}
 function t2m(t){if(!t)return Infinity;const[h,m]=t.split(':').map(Number);return h*60+m;}
+function m2t(v){const h=Math.floor(v/60)%24,m=Math.round(v%60);return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;}
+function endFromHours(s,h){if(!s||!Number(h))return null;return m2t(t2m(s)+(Number(h)*60));}
 function fmtT(t){if(!t)return null;const[h,m]=t.split(':');return m==='00'?`${parseInt(h)}`:`${parseInt(h)}:${m}`;}
-function fmtTR(s,e){if(!s)return null;return e?`${fmtT(s)} – ${fmtT(e)}`:fmtT(s);}
+function fmtTR(s,e,h){if(!s)return null;const end=e||endFromHours(s,h);return end?`${fmtT(s)} – ${fmtT(end)}`:fmtT(s);}
 function hasN(n){return n&&n!=='—'&&n.trim().length>0;}
 function sortT(r){const a=r.filter(x=>x.startTime),b=r.filter(x=>!x.startTime);a.sort((x,y)=>t2m(x.startTime)-t2m(y.startTime));return[...a,...b];}
 function knownResource(row){const r=String(row.resource||'').trim();return r&&r!=='Unknown resource'&&!/^Person \d+$/i.test(r)&&!/^Unknown/i.test(r);}
@@ -245,7 +248,7 @@ function renderDayTimeline(row){
   const labels=bookings.map((b,idx)=>{
     const c=chipColors(b);
     const current=b===row;
-    const detail=`${fmtTR(b.startTime,b.endTime)||'All day'} · ${b.taskName||'Booking'} (${b.hours||0}h)`;
+    const detail=`${fmtTR(b.startTime,b.endTime,b.hours)||'All day'} · ${b.taskName||'Booking'} (${b.hours||0}h)`;
     const chip=`<div class="booking-chip ${current?'current':''}" title="${html(detail)}" ${current?'':`style="border-color:${c.border};background:${c.bg};color:${c.text};"`}>
       <span class="booking-chip-dot" style="background:${c.dot};"></span>
       <span class="booking-chip-name">${current?'This project':html(b.project||'Untitled project')}</span>
@@ -379,7 +382,7 @@ function render(){
             const nk=`${pk}::${r.resource}::${r.taskName}::${ri}`;
             const no=S.notes[nk];
             const sn=hasN(r.notes);
-            const tr=fmtTR(r.startTime,r.endTime);
+            const tr=fmtTR(r.startTime,r.endTime,r.hours);
 
             h+=`<div><div class="resource-row ${ri%2===0?'even':'odd'}">`;
             h+=`<div class="time-col">${tr?`<div class="mono" style="font-size:11px;font-weight:500;color:${c.a};line-height:1.4;">${tr}</div>`:`<div style="font-size:10px;font-weight:600;color:#C4CAD8;text-transform:uppercase;letter-spacing:0.4px;">All day</div>`}</div>`;
