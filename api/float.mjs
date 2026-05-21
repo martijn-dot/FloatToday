@@ -24,6 +24,27 @@ function displayName(person) {
   );
 }
 
+function accountName(account) {
+  if (!account) return null;
+  return (
+    account.name ||
+    account.full_name ||
+    [account.first_name, account.last_name].filter(Boolean).join(" ") ||
+    account.email ||
+    null
+  );
+}
+
+function mapById(rows, keys) {
+  const map = {};
+  rows.forEach((row) => {
+    keys.forEach((key) => {
+      if (row?.[key]) map[String(row[key])] = row;
+    });
+  });
+  return map;
+}
+
 function projectName(project) {
   if (!project) return "Unknown project";
   return project.name || project.project_name || `Project ${project.project_id || project.id}`;
@@ -60,7 +81,7 @@ function ownerId(project) {
   return id ? String(id) : null;
 }
 
-function ownerName(project, peopleById = {}) {
+function ownerName(project, peopleById = {}, accountsById = {}) {
   const owner =
     project?.owner ||
     project?.project_owner ||
@@ -73,9 +94,11 @@ function ownerName(project, peopleById = {}) {
     project?.created_by_name;
 
   if (!owner) return "Unassigned owner";
-  if (typeof owner === "number") return displayName(peopleById[String(owner)] || null);
+  if (typeof owner === "number") {
+    return accountName(accountsById[String(owner)]) || (peopleById[String(owner)] ? displayName(peopleById[String(owner)]) : "Unassigned owner");
+  }
   if (typeof owner === "string") {
-    return /^\d+$/.test(owner) ? displayName(peopleById[owner] || null) : owner;
+    return /^\d+$/.test(owner) ? accountName(accountsById[owner]) || (peopleById[owner] ? displayName(peopleById[owner]) : "Unassigned owner") : owner;
   }
   return displayName(owner);
 }
@@ -173,27 +196,32 @@ export default {
       });
 
       const projectsById = await lookupById("/projects", token, tasks.map((task) => task.project_id));
+      const accounts = await floatFetchAll("/accounts", token);
+      const accountsById = mapById(accounts, ["account_id", "id"]);
       const peopleById = await lookupById("/people", token, [
         ...tasks.map((task) => task.people_id),
         ...Object.values(projectsById).map(ownerId),
       ]);
 
-      const rows = tasks.map((task) => {
-        const project = projectsById[String(task.project_id)];
-        const person = peopleById[String(task.people_id)];
-        return {
-          resource: displayName(person),
-          project: projectName(project),
-          owner: ownerName(project, peopleById),
-          taskName: taskName(task),
-          notes: task.notes || "",
-          hours: Number(task.hours) || 0,
-          startDate: task.start_date || date,
-          endDate: task.end_date || date,
-          startTime: pickTime(task, "startTime"),
-          endTime: pickTime(task, "endTime"),
-        };
-      });
+      const rows = tasks
+        .map((task) => {
+          const project = projectsById[String(task.project_id)];
+          const person = peopleById[String(task.people_id)];
+          const resource = displayName(person);
+          return {
+            resource,
+            project: projectName(project),
+            owner: ownerName(project, peopleById, accountsById),
+            taskName: taskName(task),
+            notes: task.notes || "",
+            hours: Number(task.hours) || 0,
+            startDate: task.start_date || date,
+            endDate: task.end_date || date,
+            startTime: pickTime(task, "startTime"),
+            endTime: pickTime(task, "endTime"),
+          };
+        })
+        .filter((row) => row.resource && row.resource !== "Unknown resource" && !/^Person \d+$/i.test(row.resource));
 
       return json({ date, rows });
     } catch (error) {

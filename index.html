@@ -84,16 +84,19 @@
     .resource-info { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
     .resource-main { min-width: 0; overflow: hidden; }
     .resource-name, .task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .other-bookings { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; margin-top: 6px; }
+    .other-bookings { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; margin-top: 5px; }
     .other-bookings.empty .booking-chip { border-color: #E0E4EA; background: #F5F6F8; color: #8A94A6; }
     .booking-chip {
-      display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 130px;
-      padding: 4px 7px; border-radius: 7px; border: 1px solid;
-      font-size: 11px; font-weight: 600; line-height: 1.2;
+      display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 92px;
+      padding: 3px 5px; border-radius: 5px; border: 1px solid;
+      font-size: 8px; font-weight: 700; line-height: 1.15;
     }
-    .booking-chip-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .booking-chip.current { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
+    .booking-chip-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .booking-chip.current .booking-chip-dot { background: #fff !important; }
     .booking-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .booking-chip-hours { font-family: 'JetBrains Mono', monospace; opacity: 0.72; flex-shrink: 0; }
+    .booking-arrow { width: 10px; height: 10px; color: #C3CAD6; flex-shrink: 0; }
 
     .notes-btn { width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; transition: all 0.15s; }
     .hours-badge { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 6px; white-space: nowrap; margin-left: 4px; }
@@ -200,38 +203,39 @@ function fmtT(t){if(!t)return null;const[h,m]=t.split(':');return m==='00'?`${pa
 function fmtTR(s,e){if(!s)return null;return e?`${fmtT(s)} – ${fmtT(e)}`:fmtT(s);}
 function hasN(n){return n&&n!=='—'&&n.trim().length>0;}
 function sortT(r){const a=r.filter(x=>x.startTime),b=r.filter(x=>!x.startTime);a.sort((x,y)=>t2m(x.startTime)-t2m(y.startTime));return[...a,...b];}
+function knownResource(row){const r=String(row.resource||'').trim();return r&&r!=='Unknown resource'&&!/^Person \d+$/i.test(r)&&!/^Unknown/i.test(r);}
+function visibleRows(){return S.rows.filter(knownResource);}
 function matchesQuery(row,q){if(!q)return true;return [row.project,row.resource].some(v=>String(v||'').toLowerCase().includes(q));}
-function filterRows(rows){const q=S.query.trim().toLowerCase();return rows.filter(r=>matchesQuery(r,q));}
+function filterRows(rows){const q=S.query.trim().toLowerCase();return rows.filter(r=>knownResource(r)&&matchesQuery(r,q));}
 function nest(rows){const om={};rows.forEach(r=>{if(!om[r.owner])om[r.owner]={name:r.owner,projects:{},th:0};const o=om[r.owner];o.th+=Number(r.hours)||0;if(!o.projects[r.project])o.projects[r.project]={name:r.project,res:[],th:0};const p=o.projects[r.project];p.th+=Number(r.hours)||0;p.res.push(r);});return Object.values(om).map(o=>({...o,projects:Object.values(o.projects).map(p=>({...p,res:sortT(p.res)}))}));}
 function mockMode(){return window.location.protocol==='file:'||new URLSearchParams(window.location.search).has('mock');}
 function live(){return !mockMode();}
 function esc(s){return String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ');}
 function html(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function colorForKey(k){let h=0;String(k||'').split('').forEach(ch=>h=(h*31+ch.charCodeAt(0))|0);return OC[Math.abs(h)%OC.length];}
-function otherBookingsFor(row){
-  const groups={};
-  S.rows
-    .filter(x=>x.resource===row.resource&&x.project!==row.project)
-    .forEach(x=>{
-      const key=x.project||'Untitled project';
-      if(!groups[key])groups[key]={project:key,hours:0,items:[]};
-      groups[key].hours+=Number(x.hours)||0;
-      groups[key].items.push(x);
-    });
-  return Object.values(groups).sort((a,b)=>t2m(a.items[0]?.startTime)-t2m(b.items[0]?.startTime)||a.project.localeCompare(b.project));
+function bookingOrderValue(row){return row.startTime?t2m(row.startTime):100000+(Number(row.hours)||0);}
+function dayBookingsFor(row){
+  return visibleRows()
+    .filter(x=>x.resource===row.resource)
+    .sort((a,b)=>bookingOrderValue(a)-bookingOrderValue(b)||String(a.project).localeCompare(String(b.project)));
 }
-function renderOtherBookings(row){
-  const others=otherBookingsFor(row);
-  if(!others.length)return `<div class="other-bookings empty"><div class="booking-chip"><span class="booking-chip-name">No other projects</span></div></div>`;
-  return `<div class="other-bookings">${others.map(o=>{
-    const c=colorForKey(o.project);
-    const detail=o.items.map(i=>`${fmtTR(i.startTime,i.endTime)||'All day'} · ${i.taskName||'Booking'} (${i.hours||0}h)`).join('\n');
-    return `<div class="booking-chip" title="${html(detail)}" style="border-color:${c.a}33;background:${c.bg};color:${c.t};">
+function renderDayTimeline(row){
+  const bookings=dayBookingsFor(row);
+  const hasOther=bookings.some(b=>b!==row&&b.project!==row.project);
+  const labels=bookings.map((b,idx)=>{
+    const c=colorForKey(b.project);
+    const current=b===row;
+    const detail=`${fmtTR(b.startTime,b.endTime)||'All day'} · ${b.taskName||'Booking'} (${b.hours||0}h)`;
+    const chip=`<div class="booking-chip ${current?'current':''}" title="${html(detail)}" ${current?'':`style="border-color:${c.a}33;background:${c.bg};color:${c.t};"`}>
       <span class="booking-chip-dot" style="background:${c.a};"></span>
-      <span class="booking-chip-name">${html(o.project)}</span>
-      <span class="booking-chip-hours">${o.hours}h</span>
+      <span class="booking-chip-name">${current?'This project':html(b.project||'Untitled project')}</span>
+      <span class="booking-chip-hours">${Number(b.hours)||0}h</span>
     </div>`;
-  }).join('')}</div>`;
+    if(idx===0)return chip;
+    return `<svg class="booking-arrow" viewBox="0 0 10 10" fill="none"><path d="M2 5h5M5.5 3L7.5 5 5.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>${chip}`;
+  }).join('');
+  const noOther=hasOther?'':`<div class="booking-chip" title="No other projects today"><span class="booking-chip-name">No other projects</span></div>`;
+  return `<div class="other-bookings ${hasOther?'':'empty'}">${labels}${hasOther?'':`<svg class="booking-arrow" viewBox="0 0 10 10" fill="none"><path d="M2 5h5M5.5 3L7.5 5 5.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>${noOther}`}</div>`;
 }
 
 function openSettings(){document.getElementById('settingsModal').classList.add('open');}
@@ -344,7 +348,7 @@ function render(){
 
             h+=`<div><div class="resource-row ${ri%2===0?'even':'odd'}">`;
             h+=`<div class="time-col">${tr?`<div class="mono" style="font-size:11px;font-weight:500;color:${c.a};line-height:1.4;">${tr}</div>`:`<div style="font-size:10px;font-weight:600;color:#C4CAD8;text-transform:uppercase;letter-spacing:0.4px;">All day</div>`}</div>`;
-            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div>${renderOtherBookings(r)}</div></div>`;
+            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div>${renderDayTimeline(r)}</div></div>`;
             h+=`<div style="margin-left:8px;width:28px;display:flex;justify-content:center;">`;
             if(sn) h+=`<button class="notes-btn" onclick="toggleN('${esc(nk)}',event)" title="${no?'Hide notes':'Show notes'}" style="border:1.5px solid ${no?c.a:'#D8DCE4'};background:${no?c.a+'0D':'transparent'};color:${no?c.a:'#9CA3B4'};"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 2.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M5 5.5h4M5 7.5h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>`;
             h+=`</div>`;
