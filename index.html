@@ -252,10 +252,21 @@ function openSettings(){document.getElementById('settingsModal').classList.add('
 function closeSettings(){document.getElementById('settingsModal').classList.remove('open');}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
 
-async function fetchData(){
+async function fetchData(force=false){
   if(!live()){S.rows=MOCK;S.nested=nest(MOCK);S.lastUpdated=new Date();S.error=null;render();return;}
   S.loading=true;S.error=null;render();
-  try{const r=await fetch(`/api/float?date=${S.date}`);const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);S.rows=j.rows||[];S.nested=nest(S.rows);S.lastUpdated=new Date();}
+  try{
+    const u=new URL('/api/float',window.location.origin);
+    u.searchParams.set('date',S.date);
+    if(force){
+      u.searchParams.set('fresh','1');
+      u.searchParams.set('_',Date.now());
+    }
+    const r=await fetch(u,{cache:force?'no-store':'default',headers:force?{'Cache-Control':'no-cache','Pragma':'no-cache'}:{}});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
+    S.rows=j.rows||[];S.nested=nest(S.rows);S.lastUpdated=new Date();
+  }
   catch(e){S.error=e.message;}
   finally{S.loading=false;render();}
 }
@@ -296,7 +307,7 @@ function render(){
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="icon-btn ${S.loading?'loading':''} ${S.loading?'spinning':''}" onclick="fetchData()" ${S.loading?'disabled':''}>
+      <button class="icon-btn ${S.loading?'loading':''} ${S.loading?'spinning':''}" onclick="fetchData(true)" ${S.loading?'disabled':''}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 8A6 6 0 114.8 3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M4.8 0.5v3.3h3.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         ${S.loading?'Loading…':'Reload'}
       </button>

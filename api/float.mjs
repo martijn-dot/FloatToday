@@ -1,10 +1,10 @@
 const FLOAT_API_BASE = "https://api.float.com/v3";
 
-function json(data, status = 200) {
+function json(data, status = 200, cacheControl = "s-maxage=60, stale-while-revalidate=300") {
   return Response.json(data, {
     status,
     headers: {
-      "Cache-Control": "s-maxage=60, stale-while-revalidate=300",
+      "Cache-Control": cacheControl,
     },
   });
 }
@@ -184,6 +184,8 @@ export default {
 
     const url = new URL(request.url);
     const date = url.searchParams.get("date");
+    const fresh = url.searchParams.get("fresh") === "1";
+    const cacheControl = fresh ? "no-store, max-age=0" : "s-maxage=60, stale-while-revalidate=300";
     if (!validDate(date)) {
       return json({ error: "Use a date query like /api/float?date=2026-05-21." }, 400);
     }
@@ -223,7 +225,7 @@ export default {
         })
         .filter((row) => row.resource && row.resource !== "Unknown resource" && !/^Person \d+$/i.test(row.resource));
 
-      return json({ date, rows });
+      return json({ date, rows }, 200, cacheControl);
     } catch (error) {
       return json({ error: error.message || "Failed to load Float data." }, 502);
     }
