@@ -132,6 +132,18 @@
       box-shadow: 0 1px 3px rgba(0,0,0,0.04);
     }
     .date-picker:focus { border-color: #1A56DB; box-shadow: 0 0 0 3px rgba(26,86,219,0.08); }
+    .absence-panel {
+      margin-bottom: 18px; padding: 12px 14px; border-radius: 10px;
+      background: #F7F8FA; border: 1px solid #E8EBF0;
+    }
+    .absence-title { font-size: 11px; font-weight: 700; color: #8892A4; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .absence-list { display: flex; flex-wrap: wrap; gap: 7px; }
+    .absence-chip {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px;
+      border-radius: 7px; background: #fff; border: 1px solid #E0E4EA;
+      color: #2D3340; font-size: 12px; font-weight: 700;
+    }
+    .absence-chip span { color: #8A94A6; font-size: 11px; font-weight: 600; }
 
     .chev { transition: transform 0.2s; }
     .chev.closed { transform: rotate(-90deg); }
@@ -181,7 +193,7 @@
 
 <script>
 let S = {
-  rows: [], nested: [], loading: false, error: null,
+  rows: [], absences: [], nested: [], loading: false, error: null,
   lastUpdated: null, collapsed: {}, notes: {},
   query: '',
   date: today(),
@@ -200,6 +212,9 @@ const MOCK = [
   { resource:"Chaitanya Rao", project:"Nike React Launch", owner:"Rick de Graaf", taskName:"Full CG spot", notes:"AB VFX Studios — external vendor. Waiting on shoe model v3 from Nike.", hours:8, startDate:"2026-05-13", endDate:"2026-05-13", startTime:null, endTime:null },
   { resource:"Mila Groot", project:"Nike React Launch", owner:"Rick de Graaf", taskName:"Tracking & matchmove", notes:"Stadium plates from drone shoot. Some shots have rolling shutter.", hours:4, startDate:"2026-05-13", endDate:"2026-05-13", startTime:"09:00", endTime:"13:00" },
   { resource:"Ruben Jansen", project:"ASML Internal Film", owner:"Rick de Graaf", taskName:"Explainer animation", notes:"", hours:4, startDate:"2026-05-13", endDate:"2026-05-13", startTime:"13:30", endTime:"17:30" },
+];
+const MOCK_ABSENCES = [
+  { resource:"Niels Hendriks", reason:"Paid time off", hours:8, fullDay:true },
 ];
 
 const OC = [
@@ -223,10 +238,12 @@ function fmtTR(s,e,h){if(!s)return null;const end=e||endFromHours(s,h);return en
 function hasN(n){return n&&n!=='—'&&n.trim().length>0;}
 function sortT(r){const a=r.filter(x=>x.startTime),b=r.filter(x=>!x.startTime);a.sort((x,y)=>t2m(x.startTime)-t2m(y.startTime));return[...a,...b];}
 function knownResource(row){const r=String(row.resource||'').trim();return r&&r!=='Unknown resource'&&!/^Person \d+$/i.test(r)&&!/^Unknown/i.test(r);}
-function visibleRows(){return S.rows.filter(knownResource);}
+function paidTimeOffText(row){return [row.project,row.taskName,row.notes,row.type,row.reason].some(v=>/paid\s*time\s*off|pto/i.test(String(v||'')));}
+function absentResourceNames(){return new Set(S.absences.map(a=>String(a.resource||'').trim()).filter(Boolean));}
+function visibleRows(){const absent=absentResourceNames();return S.rows.filter(r=>knownResource(r)&&!paidTimeOffText(r)&&!absent.has(String(r.resource||'').trim()));}
 function withOrder(rows){return rows.map((r,i)=>({...r,order:Number.isFinite(Number(r.order))?Number(r.order):i}));}
 function matchesQuery(row,q){if(!q)return true;return [row.project,row.resource].some(v=>String(v||'').toLowerCase().includes(q));}
-function filterRows(rows){const q=S.query.trim().toLowerCase();return rows.filter(r=>knownResource(r)&&matchesQuery(r,q));}
+function filterRows(rows){const q=S.query.trim().toLowerCase();const absent=absentResourceNames();return rows.filter(r=>knownResource(r)&&!paidTimeOffText(r)&&!absent.has(String(r.resource||'').trim())&&matchesQuery(r,q));}
 function nest(rows){const om={};rows.forEach(r=>{if(!om[r.owner])om[r.owner]={name:r.owner,projects:{},th:0};const o=om[r.owner];o.th+=Number(r.hours)||0;if(!o.projects[r.project])o.projects[r.project]={name:r.project,res:[],th:0};const p=o.projects[r.project];p.th+=Number(r.hours)||0;p.res.push(r);});return Object.values(om).map(o=>({...o,projects:Object.values(o.projects).map(p=>({...p,res:sortT(p.res)}))}));}
 function mockMode(){return window.location.protocol==='file:'||new URLSearchParams(window.location.search).has('mock');}
 function live(){return !mockMode();}
@@ -266,7 +283,7 @@ function closeSettings(){document.getElementById('settingsModal').classList.remo
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
 
 async function fetchData(force=false){
-  if(!live()){S.rows=withOrder(MOCK);S.nested=nest(S.rows);S.lastUpdated=new Date();S.error=null;render();return;}
+  if(!live()){S.rows=withOrder(MOCK);S.absences=MOCK_ABSENCES;S.nested=nest(visibleRows());S.lastUpdated=new Date();S.error=null;render();return;}
   S.loading=true;S.error=null;render();
   try{
     const u=new URL('/api/float',window.location.origin);
@@ -278,7 +295,7 @@ async function fetchData(force=false){
     const r=await fetch(u,{cache:force?'no-store':'default',headers:force?{'Cache-Control':'no-cache','Pragma':'no-cache'}:{}});
     const j=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-    S.rows=withOrder(j.rows||[]);S.nested=nest(S.rows);S.lastUpdated=new Date();
+    S.rows=withOrder(j.rows||[]);S.absences=j.absences||[];S.nested=nest(visibleRows());S.lastUpdated=new Date();
   }
   catch(e){S.error=e.message;}
   finally{S.loading=false;render();}
@@ -341,6 +358,13 @@ function render(){
     </div>
     <input class="date-picker" type="date" value="${html(S.date)}" onchange="setDate(this.value)" title="Select date" />
   </div>`;
+
+  if(S.absences.length){
+    h+=`<div class="absence-panel">
+      <div class="absence-title">Not present today</div>
+      <div class="absence-list">${S.absences.map(a=>`<div class="absence-chip">${html(a.resource)}<span>${html(a.reason||'Paid time off')}${a.hours?` · ${html(a.hours)}h`:''}</span></div>`).join('')}</div>
+    </div>`;
+  }
 
   // Stats
   h+=`<div class="stats-row">`;

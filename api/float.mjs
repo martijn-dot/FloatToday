@@ -55,6 +55,28 @@ function projectColor(project) {
   return /^[0-9a-f]{6}$/i.test(raw) ? raw : null;
 }
 
+function timeoffTypeName(type) {
+  if (!type) return "";
+  return type.name || type.timeoff_type_name || type.type || "";
+}
+
+function isPaidTimeOff(timeoff, type) {
+  const label = [
+    timeoff?.name,
+    timeoff?.notes,
+    timeoff?.timeoff_type_name,
+    timeoff?.type,
+    timeoffTypeName(type),
+  ].join(" ");
+  return (
+    timeoff?.paid === 1 ||
+    timeoff?.paid === true ||
+    type?.paid === 1 ||
+    type?.paid === true ||
+    /paid\s*time\s*off|pto/i.test(label)
+  );
+}
+
 function taskName(task) {
   return task.name || task.task_name || task.phase_name || "Allocation";
 }
@@ -212,6 +234,14 @@ async function lookupById(path, token, ids) {
   return Object.fromEntries(entries);
 }
 
+async function optionalFetchAll(path, token, params = {}) {
+  try {
+    return await floatFetchAll(path, token, params);
+  } catch {
+    return [];
+  }
+}
+
 export default {
   async fetch(request) {
     const token = process.env.FLOAT_API_TOKEN;
@@ -232,14 +262,45 @@ export default {
         start_date: date,
         end_date: date,
       });
+      const timeoffs = await optionalFetchAll("/timeoffs", token, {
+        start_date: date,
+        end_date: date,
+      });
+      const timeoffTypes = await optionalFetchAll("/timeoff-types", token);
+      const timeoffTypesById = mapById(timeoffTypes, ["timeoff_type_id", "id"]);
+      const paidTimeoffs = timeoffs.filter((timeoff) => isPaidTimeOff(timeoff, timeoffTypesById[String(timeoff.timeoff_type_id)]));
+      const absentPeopleIds = new Set(paidTimeoffs.map((timeoff) => String(timeoff.people_id)).filter(Boolean));
 
       const projectsById = await lookupById("/projects", token, tasks.map((task) => task.project_id));
       const accounts = await floatFetchAll("/accounts", token);
       const accountsById = mapById(accounts, ["account_id", "id"]);
       const peopleById = await lookupById("/people", token, [
         ...tasks.map((task) => task.people_id),
+        ...paidTimeoffs.map((timeoff) => timeoff.people_id),
         ...Object.values(projectsById).map(ownerId),
       ]);
+      const absencesByResource = new Map();
+      paidTimeoffs
+        .map((timeoff) => {
+          const type = timeoffTypesById[String(timeoff.timeoff_type_id)];
+          const person = peopleById[String(timeoff.people_id)];
+          return {
+            resource: displayName(person),
+            reason: timeoffTypeName(type) || timeoff.timeoff_type_name || "Paid time off",
+            hours: timeoff.full_day ? null : Number(timeoff.hours) || null,
+            fullDay: timeoff.full_day === 1 || timeoff.full_day === true,
+          };
+        })
+        .filter((absence) => absence.resource && absence.resource !== "Unknown resource" && !/^Person \d+$/i.test(absence.resource))
+        .forEach((absence) => {
+          const existing = absencesByResource.get(absence.resource);
+          if (!existing) {
+            absencesByResource.set(absence.resource, absence);
+          } else if (absence.hours) {
+            existing.hours = Number(existing.hours || 0) + Number(absence.hours || 0);
+          }
+        });
+      const absences = [...absencesByResource.values()].sort((a, b) => a.resource.localeCompare(b.resource));
 
       const rows = tasks
         .map((task, index) => {
@@ -263,9 +324,10 @@ export default {
             order: index,
           };
         })
-        .filter((row) => row.resource && row.resource !== "Unknown resource" && !/^Person \d+$/i.test(row.resource));
+        .filter((row) => row.resource && row.resource !== "Unknown resource" && !/^Person \d+$/i.test(row.resource))
+        .filter((row) => !absentPeopleIds.has(String(tasks[row.order]?.people_id)));
 
-      return json({ date, rows }, 200, cacheControl);
+      return json({ date, rows, absences }, 200, cacheControl);
     } catch (error) {
       return json({ error: error.message || "Failed to load Float data." }, 502);
     }
