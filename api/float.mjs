@@ -347,6 +347,7 @@ export default {
             resource: displayName(person),
             reason: timeoffLabel(timeoff, type),
             timeoff_type_id: typeId,
+            timeoff,
             hours: timeoff.full_day ? null : Number(timeoff.hours) || null,
             fullDay: timeoff.full_day === 1 || timeoff.full_day === true,
             sick: isSickLeave(timeoff, type),

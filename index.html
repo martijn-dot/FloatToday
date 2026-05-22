@@ -97,14 +97,14 @@
       opacity: 1; background-color: #F1F3F6;
       background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(150,160,176,0.32) 4px 6px);
     }
-    .booking-label {
+    .booking-label { 
       position: absolute; top: 0; left: var(--label-left, 0); width: var(--label-width, auto);
       height: 14px; display: flex; align-items: center; gap: 5px; min-width: 0;
-      color: #8A94A6; font-size: 7.2px; font-weight: 800; line-height: 1;
+      color: rgba(138,148,166,0.7); font-size: 7.2px; font-weight: 800; line-height: 1;
       text-transform: uppercase; letter-spacing: 0.2px; overflow: hidden;
       pointer-events: auto;
     }
-    .booking-label-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--project-color, currentColor); }
+    .booking-label-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: currentColor; opacity: 1; }
     .booking-label-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .booking-label-hours { margin-left: 5px; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
     .booking-label.remaining-label { justify-content: flex-end; gap: 5px; }
@@ -368,7 +368,7 @@ function renderDayTimeline(row){
     <span class="booking-label-name">Not booked</span>
     <span class="booking-label-hours">${remaining}h</span>
   </div>`);
-  return `<div class="booking-timeline ${onlyCurrent?'only-current':''}" aria-label="Daily booking timeline" style="--current-left:${currentLeft}%;--current-width:${currentWidth}%;--current-color:${currentColor};--current-text:${currentText};--tip-color:${currentColor};--tip-text:${currentText};">
+  return `<div class="booking-timeline ${onlyCurrent?'only-current':''}" aria-label="Daily booking timeline" style="--current-left:${currentLeft}%;--current-width:calc(${currentWidth}% - ${onlyCurrent?0:gapPx}px);--current-color:${currentColor};--current-text:${currentText};--tip-color:${currentColor};--tip-text:${currentText};">
     <div class="current-project-label" data-tip="${html(currentTip)}" onmousemove="moveTip(event,this)"><span>This project</span><span>${currentHours}h</span></div>
     <div class="booking-labels">${labels.join('')}</div>
     <div class="booking-track">${segments.join('')}${remainingLabel}</div>
