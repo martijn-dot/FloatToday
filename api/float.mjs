@@ -75,16 +75,34 @@ function timeoffTypeName(type) {
   return type.name || type.timeoff_type_name || type.type || "";
 }
 
-function isSickLeave(timeoff, type) {
-  return /\bsick\b/i.test(
-    [
-      timeoff?.name,
-      timeoff?.notes,
-      timeoff?.timeoff_type_name,
-      timeoff?.type,
-      timeoffTypeName(type),
-    ].join(" ")
+function timeoffLabel(timeoff, type) {
+  const candidates = [
+    timeoff?.timeoff_type_name,
+    timeoff?.timeoff_name,
+    timeoff?.type_name,
+    timeoff?.category_name,
+    timeoff?.name,
+    timeoff?.type,
+    timeoff?.category,
+    timeoff?.notes,
+    timeoffTypeName(type),
+  ];
+  return candidates.map((value) => String(value || "").trim()).find(Boolean) || "Time off";
+}
+
+function timeoffTypeId(timeoff) {
+  return (
+    timeoff?.timeoff_type_id ||
+    timeoff?.type_id ||
+    timeoff?.timeoffTypeId ||
+    timeoff?.timeoff_type?.id ||
+    timeoff?.type?.id ||
+    null
   );
+}
+
+function isSickLeave(timeoff, type) {
+  return /\bsick\b/i.test(timeoffLabel(timeoff, type));
 }
 
 function taskIsTimeOff(task, project) {
@@ -307,7 +325,7 @@ export default {
         end_date: date,
       });
       const timeoffTypes = await optionalFetchAll("/timeoff-types", token);
-      const timeoffTypesById = mapById(timeoffTypes, ["timeoff_type_id", "id"]);
+      const timeoffTypesById = mapById(timeoffTypes, ["timeoff_type_id", "type_id", "id"]);
       const absentPeopleIds = new Set(timeoffs.map((timeoff) => String(timeoff.people_id)).filter(Boolean));
 
       const projectsById = await lookupById("/projects", token, tasks.map((task) => task.project_id));
@@ -322,11 +340,11 @@ export default {
       const sickLeavesByResource = new Map();
       timeoffs
         .map((timeoff) => {
-          const type = timeoffTypesById[String(timeoff.timeoff_type_id)];
+          const type = timeoffTypesById[String(timeoffTypeId(timeoff))];
           const person = peopleById[String(timeoff.people_id)];
           return {
             resource: displayName(person),
-            reason: timeoffTypeName(type) || timeoff.timeoff_type_name || (isSickLeave(timeoff, type) ? "Sick leave" : "Time off"),
+            reason: timeoffLabel(timeoff, type),
             hours: timeoff.full_day ? null : Number(timeoff.hours) || null,
             fullDay: timeoff.full_day === 1 || timeoff.full_day === true,
             sick: isSickLeave(timeoff, type),
@@ -389,6 +407,15 @@ export default {
         rows,
         absences: [...absencesByResource.values()].sort((a, b) => a.resource.localeCompare(b.resource)),
         sickLeaves: [...sickLeavesByResource.values()].sort((a, b) => a.resource.localeCompare(b.resource)),
+        debug: url.searchParams.get("debug") === "1" ? {
+          timeoffCount: timeoffs.length,
+          timeoffKeys: [...new Set(timeoffs.flatMap((timeoff) => Object.keys(timeoff || {})))],
+          timeoffSamples: timeoffs.slice(0, 3).map((timeoff) => ({
+            people_id: timeoff.people_id,
+            label: timeoffLabel(timeoff, timeoffTypesById[String(timeoffTypeId(timeoff))]),
+            keys: Object.keys(timeoff || {}),
+          })),
+        } : undefined,
       }, 200, cacheControl);
     } catch (error) {
       return json({ error: error.message || "Failed to load Float data." }, 502);
