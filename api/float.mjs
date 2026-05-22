@@ -101,6 +101,11 @@ function timeoffTypeId(timeoff) {
   );
 }
 
+function timeoffPeopleIds(timeoff) {
+  const ids = Array.isArray(timeoff?.people_ids) ? timeoff.people_ids : [timeoff?.people_id];
+  return ids.filter((id) => id !== undefined && id !== null).map(String);
+}
+
 function isSickLeave(timeoff, type) {
   return /\bsick\b/i.test(timeoffLabel(timeoff, type));
 }
@@ -326,32 +331,37 @@ export default {
       });
       const timeoffTypes = await optionalFetchAll("/timeoff-types", token);
       const timeoffTypesById = mapById(timeoffTypes, ["timeoff_type_id", "type_id", "id"]);
-      const absentPeopleIds = new Set(timeoffs.map((timeoff) => String(timeoff.people_id)).filter(Boolean));
+      const timeoffPersonIds = timeoffs.flatMap(timeoffPeopleIds);
+      const absentPeopleIds = new Set(timeoffPersonIds);
 
       const projectsById = await lookupById("/projects", token, tasks.map((task) => task.project_id));
       const accounts = await floatFetchAll("/accounts", token);
       const accountsById = mapById(accounts, ["account_id", "id"]);
       const peopleById = await lookupById("/people", token, [
         ...tasks.map((task) => task.people_id),
-        ...timeoffs.map((timeoff) => timeoff.people_id),
+        ...timeoffPersonIds,
         ...Object.values(projectsById).map(ownerId),
       ]);
       const absencesByResource = new Map();
       const sickLeavesByResource = new Map();
       timeoffs
-        .map((timeoff) => {
+        .flatMap((timeoff) => {
           const typeId = timeoffTypeId(timeoff);
           const type = timeoffTypesById[String(typeId)];
-          const person = peopleById[String(timeoff.people_id)];
-          return {
-            resource: displayName(person),
-            reason: timeoffLabel(timeoff, type),
-            timeoff_type_id: typeId,
-            timeoff,
-            hours: timeoff.full_day ? null : Number(timeoff.hours) || null,
-            fullDay: timeoff.full_day === 1 || timeoff.full_day === true,
-            sick: isSickLeave(timeoff, type),
-          };
+          return timeoffPeopleIds(timeoff).map((peopleId) => {
+            const person = peopleById[String(peopleId)];
+            return {
+              resource: displayName(person),
+              people_id: Number(peopleId),
+              reason: timeoffLabel(timeoff, type),
+              timeoff_type_id: typeId,
+              timeoff,
+              hours: timeoff.full_day ? null : Number(timeoff.hours) || null,
+              fullDay: timeoff.full_day === 1 || timeoff.full_day === true,
+              status: timeoff.status || null,
+              sick: isSickLeave(timeoff, type),
+            };
+          });
         })
         .filter((absence) => absence.resource && absence.resource !== "Unknown resource" && !/^Person \d+$/i.test(absence.resource))
         .forEach((absence) => {
@@ -414,8 +424,10 @@ export default {
           timeoffCount: timeoffs.length,
           timeoffKeys: [...new Set(timeoffs.flatMap((timeoff) => Object.keys(timeoff || {})))],
           timeoffSamples: timeoffs.slice(0, 3).map((timeoff) => ({
-            people_id: timeoff.people_id,
+            people_ids: timeoffPeopleIds(timeoff),
+            timeoff_type_id: timeoffTypeId(timeoff),
             label: timeoffLabel(timeoff, timeoffTypesById[String(timeoffTypeId(timeoff))]),
+            sick: isSickLeave(timeoff, timeoffTypesById[String(timeoffTypeId(timeoff))]),
             keys: Object.keys(timeoff || {}),
           })),
         } : undefined,
