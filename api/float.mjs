@@ -26,7 +26,9 @@ function displayName(person) {
 
 function avatarUrl(person) {
   if (!person) return null;
+  const avatarFile = person.avatar_file;
   return (
+    (typeof avatarFile === "string" ? avatarFile : avatarFile?.url || avatarFile?.src || avatarFile?.path) ||
     person.avatar_url ||
     person.profile_image_url ||
     person.profile_photo_url ||

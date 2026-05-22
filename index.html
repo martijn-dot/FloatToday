@@ -85,25 +85,29 @@
     .resource-info { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
     .resource-main { min-width: 0; overflow: hidden; }
     .resource-name, .task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .booking-timeline { grid-column: 2 / 4; position: relative; display: flex; align-items: center; width: 100%; min-width: 0; height: 34px; padding-top: 16px; background: transparent; }
-    .booking-track { display: flex; align-items: center; width: 100%; height: 16px; background: #F0F1F4; overflow: hidden; border-radius: 7px; }
+    .booking-timeline { grid-column: 2 / 4; position: relative; width: 100%; min-width: 0; height: 26px; padding-top: 18px; background: transparent; }
+    .booking-track { display: flex; align-items: center; width: 100%; height: 4px; background: #F0F1F4; overflow: hidden; border-radius: 999px; }
+    .booking-labels { position: absolute; inset: 0 0 auto 0; height: 16px; pointer-events: none; }
     .booking-segment {
-      height: 16px; min-width: 0; display: flex; align-items: center; gap: 7px;
-      padding: 0 8px; overflow: hidden; color: #fff; font-size: 7.2px; font-weight: 800;
-      line-height: 1; text-transform: uppercase; letter-spacing: 0.2px;
+      height: 4px; min-width: 0; overflow: visible; color: #fff;
     }
     .booking-segment.other { opacity: 1; }
     .booking-segment.current-gap { background: transparent !important; color: transparent !important; }
     .booking-segment.remaining {
-      opacity: 1; color: #A1A9B8; background-color: #F1F3F6;
-      background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgba(150,160,176,0.28) 5px 7px);
+      opacity: 1; background-color: #F1F3F6;
+      background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(150,160,176,0.32) 4px 6px);
     }
-    .booking-segment-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: currentColor; opacity: 0.85; }
-    .booking-segment.current-gap .booking-segment-dot,
-    .booking-segment.current-gap .booking-segment-hours { display: none; }
-    .booking-segment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
-    .booking-segment-hours { margin-left: auto; font-family: 'JetBrains Mono', monospace; flex: 0 0 auto; min-width: max-content; position: relative; z-index: 1; }
-    .booking-segment::after {
+    .booking-label {
+      position: absolute; top: 0; left: var(--label-left, 0); width: var(--label-width, auto);
+      height: 14px; display: flex; align-items: center; gap: 5px; min-width: 0;
+      color: #8A94A6; font-size: 7.2px; font-weight: 800; line-height: 1;
+      text-transform: uppercase; letter-spacing: 0.2px; overflow: hidden;
+      pointer-events: auto;
+    }
+    .booking-label-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--project-color, currentColor); }
+    .booking-label-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    .booking-label-hours { margin-left: auto; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
+    .booking-label::after, .current-project-label::after {
       content: attr(data-tip); position: fixed; z-index: 300; left: var(--tip-x, 50%); top: var(--tip-y, 0);
       transform: translate(-50%, calc(-100% - 10px)); max-width: 280px; padding: 8px 10px 8px 12px;
       border-radius: 7px; background: var(--tip-color, #1a1a2e); border: 1px solid var(--tip-color, #1a1a2e);
@@ -111,17 +115,18 @@
       font-size: 12px; font-weight: 700; line-height: 1.35; text-transform: none; letter-spacing: 0;
       white-space: pre; pointer-events: none; opacity: 0; visibility: hidden;
     }
-    .booking-segment:hover::after { opacity: 1; visibility: visible; }
+    .booking-label:hover::after, .current-project-label:hover::after { opacity: 1; visibility: visible; }
     .current-project-label {
       position: absolute; top: 0; left: var(--current-left, 0); width: var(--current-width, auto);
       height: 16px; display: flex; align-items: center; justify-content: space-between; gap: 6px;
-      min-width: 0; padding: 0 8px; background: #000; color: #fff; border-radius: 6px;
+      min-width: 0; padding: 0 8px; background: var(--current-color, #000); color: var(--current-text, #fff); border-radius: 6px;
       font-size: 7.2px; font-weight: 800; line-height: 1; text-transform: uppercase; letter-spacing: 0.2px;
       overflow: hidden; z-index: 2;
     }
     .booking-timeline.only-current { height: 16px; padding-top: 0; }
     .booking-timeline.only-current .current-project-label { position: static; width: 100%; height: 16px; }
-    .booking-timeline.only-current .booking-track { display: none; }
+    .booking-timeline.only-current .booking-track,
+    .booking-timeline.only-current .booking-labels { display: none; }
     .current-project-label span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .current-project-label span:last-child { flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
     .tentative-badge {
@@ -299,31 +304,38 @@ function renderDayTimeline(row){
   const workdayHours=8;
   const usedHours=bookings.reduce((s,b)=>s+(Number(b.hours)||0),0);
   const onlyCurrent=bookings.length===1&&bookings[0]===row;
-  let offset=0, currentLeft=0, currentWidth=0, currentHours=Number(row.hours)||0;
-  const labels=bookings.map((b,idx)=>{
+  let offset=0, currentLeft=0, currentWidth=0, currentHours=Number(row.hours)||0, currentColor='#000', currentText='#fff', currentTip='';
+  const segments=[], labels=[];
+  bookings.forEach((b,idx)=>{
     const c=chipColors(b);
     const current=b===row;
     const detail=`${current?'This project':b.project||'Untitled project'}\n${Number(b.hours)||0}h${fmtTR(b.startTime,b.endTime,b.hours)?` · ${fmtTR(b.startTime,b.endTime,b.hours)}`:''}`;
     const width=Math.max((Number(b.hours)||0)/workdayHours*100,3);
     const actualWidth=(Number(b.hours)||0)/workdayHours*100;
-    if(current){currentLeft=offset;currentWidth=actualWidth;}
+    const projectColor=projectHex(b)||c.bg;
+    if(current){currentLeft=offset;currentWidth=actualWidth;currentColor=projectColor;currentText=textForBg(projectColor)||'#fff';currentTip=detail;}
+    const left=offset;
     offset+=actualWidth;
-    const tipColor=current?'#007A4D':(projectHex(b)||c.bg);
+    const tipColor=projectColor;
     const tipText=textForBg(tipColor)||'#fff';
     const compact=width<18;
-    return `<div class="booking-segment ${current?'current-gap':'other'}" data-tip="${html(detail)}" onmousemove="moveTip(event,this)" style="--tip-color:${tipColor};--tip-text:${tipText};flex:0 0 ${width}%;${current?'':`background:${c.bg};color:${c.text};`}">
-      <span class="booking-segment-dot"></span>
-      <span class="booking-segment-name">${compact||current?'':html(b.project||'Untitled project')}</span>
-      <span class="booking-segment-hours">${Number(b.hours)||0}h</span>
-    </div>`;
-  }).join('');
+    segments.push(`<div class="booking-segment ${current?'current-gap':'other'}" style="flex:0 0 ${width}%;${current?'':`background:${projectColor};`}"></div>`);
+    if(!current)labels.push(`<div class="booking-label" data-tip="${html(detail)}" onmousemove="moveTip(event,this)" style="--label-left:${left}%;--label-width:${width}%;--project-color:${projectColor};--tip-color:${tipColor};--tip-text:${tipText};">
+      <span class="booking-label-dot"></span>
+      <span class="booking-label-name">${compact?'':html(b.project||'Untitled project')}</span>
+      <span class="booking-label-hours">${Number(b.hours)||0}h</span>
+    </div>`);
+  });
   const remaining=onlyCurrent?0:Math.max(workdayHours-usedHours,0);
   const remainingLabel=remaining?`<div class="booking-segment remaining" data-tip="${html(`Available\n${remaining}h left`)}" onmousemove="moveTip(event,this)" style="--tip-color:#C3CAD6;flex:0 0 ${remaining/workdayHours*100}%;">
-    <span class="booking-segment-name">${remaining}h not booked</span>
   </div>`:'';
-  return `<div class="booking-timeline ${onlyCurrent?'only-current':''}" aria-label="Daily booking timeline" style="--current-left:${currentLeft}%;--current-width:${currentWidth}%;">
-    <div class="current-project-label"><span>This project</span><span>${currentHours}h</span></div>
-    <div class="booking-track">${labels}${remainingLabel}</div>
+  if(remaining&&!onlyCurrent)labels.push(`<div class="booking-label" data-tip="${html(`Available\n${remaining}h left`)}" onmousemove="moveTip(event,this)" style="--label-left:${100-(remaining/workdayHours*100)}%;--label-width:${remaining/workdayHours*100}%;--project-color:#A1A9B8;--tip-color:#C3CAD6;--tip-text:#1a1a2e;">
+    <span class="booking-label-name">${remaining}h not booked</span>
+  </div>`);
+  return `<div class="booking-timeline ${onlyCurrent?'only-current':''}" aria-label="Daily booking timeline" style="--current-left:${currentLeft}%;--current-width:${currentWidth}%;--current-color:${currentColor};--current-text:${currentText};--tip-color:${currentColor};--tip-text:${currentText};">
+    <div class="current-project-label" data-tip="${html(currentTip)}" onmousemove="moveTip(event,this)"><span>This project</span><span>${currentHours}h</span></div>
+    <div class="booking-labels">${labels.join('')}</div>
+    <div class="booking-track">${segments.join('')}${remainingLabel}</div>
   </div>`;
 }
 
