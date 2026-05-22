@@ -24,6 +24,19 @@ function displayName(person) {
   );
 }
 
+function avatarUrl(person) {
+  if (!person) return null;
+  return (
+    person.avatar_url ||
+    person.profile_image_url ||
+    person.profile_photo_url ||
+    person.photo_url ||
+    person.image_url ||
+    person.avatar ||
+    null
+  );
+}
+
 function accountName(account) {
   if (!account) return null;
   return (
@@ -348,6 +361,7 @@ export default {
           }
           return {
             resource,
+            avatarUrl: avatarUrl(person),
             project: projectName(project),
             projectColor: projectColor(project),
             owner: ownerName(project, peopleById, accountsById),

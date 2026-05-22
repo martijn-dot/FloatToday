@@ -80,24 +80,27 @@
     .resource-row.odd { background: #FBFCFD; }
 
     .time-col { padding-right: 14px; border-right: 2px solid #E8EBF0; margin-right: 14px; min-height: 28px; display: flex; align-items: center; }
-    .res-avatar { width: 28px; height: 28px; border-radius: 50%; background: #E8EBF0; color: #5A6378; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+    .res-avatar { width: 28px; height: 28px; border-radius: 50%; background: #E8EBF0; color: #5A6378; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+    .res-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .resource-info { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
     .resource-main { min-width: 0; overflow: hidden; }
     .resource-name, .task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .booking-timeline { grid-column: 2 / 4; display: flex; align-items: center; width: 100%; min-width: 0; height: 16px; background: #F0F1F4; overflow: hidden; }
+    .booking-timeline { grid-column: 2 / 4; position: relative; display: flex; align-items: center; width: 100%; min-width: 0; height: 34px; padding-top: 16px; background: transparent; }
+    .booking-track { display: flex; align-items: center; width: 100%; height: 16px; background: #F0F1F4; overflow: hidden; border-radius: 7px; }
     .booking-segment {
       height: 16px; min-width: 0; display: flex; align-items: center; gap: 7px;
-      padding: 0 8px; overflow: hidden; color: #fff; font-size: 9px; font-weight: 800;
+      padding: 0 8px; overflow: hidden; color: #fff; font-size: 7.2px; font-weight: 800;
       line-height: 1; text-transform: uppercase; letter-spacing: 0.2px;
     }
     .booking-segment.other { opacity: 1; }
-    .booking-segment.current { background: #007A4D !important; color: #fff !important; }
+    .booking-segment.current-gap { background: transparent !important; color: transparent !important; }
     .booking-segment.remaining {
       opacity: 1; color: #A1A9B8; background-color: #F1F3F6;
       background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgba(150,160,176,0.28) 5px 7px);
     }
     .booking-segment-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: currentColor; opacity: 0.85; }
-    .booking-segment.current .booking-segment-dot { background: #fff; opacity: 1; }
+    .booking-segment.current-gap .booking-segment-dot,
+    .booking-segment.current-gap .booking-segment-hours { display: none; }
     .booking-segment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
     .booking-segment-hours { margin-left: auto; font-family: 'JetBrains Mono', monospace; flex: 0 0 auto; min-width: max-content; position: relative; z-index: 1; }
     .booking-segment::after {
@@ -109,6 +112,18 @@
       white-space: pre; pointer-events: none; opacity: 0; visibility: hidden;
     }
     .booking-segment:hover::after { opacity: 1; visibility: visible; }
+    .current-project-label {
+      position: absolute; top: 0; left: var(--current-left, 0); width: var(--current-width, auto);
+      height: 16px; display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      min-width: 0; padding: 0 8px; background: #000; color: #fff; border-radius: 6px;
+      font-size: 7.2px; font-weight: 800; line-height: 1; text-transform: uppercase; letter-spacing: 0.2px;
+      overflow: hidden; z-index: 2;
+    }
+    .booking-timeline.only-current { height: 16px; padding-top: 0; }
+    .booking-timeline.only-current .current-project-label { position: static; width: 100%; height: 16px; }
+    .booking-timeline.only-current .booking-track { display: none; }
+    .current-project-label span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .current-project-label span:last-child { flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
     .tentative-badge {
       display: inline-flex; align-items: center; height: 16px; padding: 0 6px;
       border-radius: 5px; border: 1px solid #9333EA; background: transparent; color: #7E22CE;
@@ -283,25 +298,33 @@ function renderDayTimeline(row){
   const bookings=dayBookingsFor(row);
   const workdayHours=8;
   const usedHours=bookings.reduce((s,b)=>s+(Number(b.hours)||0),0);
+  const onlyCurrent=bookings.length===1&&bookings[0]===row;
+  let offset=0, currentLeft=0, currentWidth=0, currentHours=Number(row.hours)||0;
   const labels=bookings.map((b,idx)=>{
     const c=chipColors(b);
     const current=b===row;
     const detail=`${current?'This project':b.project||'Untitled project'}\n${Number(b.hours)||0}h${fmtTR(b.startTime,b.endTime,b.hours)?` · ${fmtTR(b.startTime,b.endTime,b.hours)}`:''}`;
     const width=Math.max((Number(b.hours)||0)/workdayHours*100,3);
+    const actualWidth=(Number(b.hours)||0)/workdayHours*100;
+    if(current){currentLeft=offset;currentWidth=actualWidth;}
+    offset+=actualWidth;
     const tipColor=current?'#007A4D':(projectHex(b)||c.bg);
     const tipText=textForBg(tipColor)||'#fff';
     const compact=width<18;
-    return `<div class="booking-segment ${current?'current':'other'}" data-tip="${html(detail)}" onmousemove="moveTip(event,this)" style="--tip-color:${tipColor};--tip-text:${tipText};flex:0 0 ${width}%;${current?'':`background:${c.bg};color:${c.text};`}">
+    return `<div class="booking-segment ${current?'current-gap':'other'}" data-tip="${html(detail)}" onmousemove="moveTip(event,this)" style="--tip-color:${tipColor};--tip-text:${tipText};flex:0 0 ${width}%;${current?'':`background:${c.bg};color:${c.text};`}">
       <span class="booking-segment-dot"></span>
-      <span class="booking-segment-name">${compact?'':current?'This project':html(b.project||'Untitled project')}</span>
+      <span class="booking-segment-name">${compact||current?'':html(b.project||'Untitled project')}</span>
       <span class="booking-segment-hours">${Number(b.hours)||0}h</span>
     </div>`;
   }).join('');
-  const remaining=Math.max(workdayHours-usedHours,0);
+  const remaining=onlyCurrent?0:Math.max(workdayHours-usedHours,0);
   const remainingLabel=remaining?`<div class="booking-segment remaining" data-tip="${html(`Available\n${remaining}h left`)}" onmousemove="moveTip(event,this)" style="--tip-color:#C3CAD6;flex:0 0 ${remaining/workdayHours*100}%;">
     <span class="booking-segment-name">${remaining}h not booked</span>
   </div>`:'';
-  return `<div class="booking-timeline" aria-label="Daily booking timeline">${labels}${remainingLabel}</div>`;
+  return `<div class="booking-timeline ${onlyCurrent?'only-current':''}" aria-label="Daily booking timeline" style="--current-left:${currentLeft}%;--current-width:${currentWidth}%;">
+    <div class="current-project-label"><span>This project</span><span>${currentHours}h</span></div>
+    <div class="booking-track">${labels}${remainingLabel}</div>
+  </div>`;
 }
 
 function openSettings(){document.getElementById('settingsModal').classList.add('open');}
@@ -445,7 +468,7 @@ function render(){
 
             h+=`<div><div class="resource-row ${ri%2===0?'even':'odd'}">`;
             h+=`<div class="time-col">${tr?`<div class="mono" style="font-size:11px;font-weight:500;color:${c.a};line-height:1.4;">${tr}</div>`:`<div style="font-size:10px;font-weight:600;color:#C4CAD8;text-transform:uppercase;letter-spacing:0.4px;">All day</div>`}</div>`;
-            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}${r.tentative?'<span class="tentative-badge">Tentative</span>':''}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div></div></div>`;
+            h+=`<div class="resource-info"><div class="res-avatar">${r.avatarUrl?`<img src="${html(r.avatarUrl)}" alt="${html(r.resource)}" />`:html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}${r.tentative?'<span class="tentative-badge">Tentative</span>':''}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div></div></div>`;
             h+=`<div style="margin-left:8px;width:28px;display:flex;justify-content:center;">`;
             if(sn) h+=`<button class="notes-btn" onclick="toggleN('${esc(nk)}',event)" title="${no?'Hide notes':'Show notes'}" style="border:1.5px solid ${no?c.a:'#D8DCE4'};background:${no?c.a+'0D':'transparent'};color:${no?c.a:'#9CA3B4'};"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 2.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M5 5.5h4M5 7.5h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>`;
             h+=`</div>`;
