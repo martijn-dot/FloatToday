@@ -77,6 +77,21 @@ function isPaidTimeOff(timeoff, type) {
   );
 }
 
+function taskIsPaidTimeOff(task, project) {
+  return /\bpaid\s*time\s*off\b|\bpto\b/i.test(
+    [
+      task?.name,
+      task?.task_name,
+      task?.phase_name,
+      task?.notes,
+      task?.type,
+      task?.status,
+      project?.name,
+      project?.project_name,
+    ].join(" ")
+  );
+}
+
 function taskName(task) {
   return task.name || task.task_name || task.phase_name || "Allocation";
 }
@@ -300,13 +315,23 @@ export default {
             existing.hours = Number(existing.hours || 0) + Number(absence.hours || 0);
           }
         });
-      const absences = [...absencesByResource.values()].sort((a, b) => a.resource.localeCompare(b.resource));
-
       const rows = tasks
         .map((task, index) => {
           const project = projectsById[String(task.project_id)];
           const person = peopleById[String(task.people_id)];
           const resource = displayName(person);
+          const paidTimeOff = taskIsPaidTimeOff(task, project);
+          if (paidTimeOff && resource && resource !== "Unknown resource" && !/^Person \d+$/i.test(resource)) {
+            absentPeopleIds.add(String(task.people_id));
+            if (!absencesByResource.has(resource)) {
+              absencesByResource.set(resource, {
+                resource,
+                reason: "Paid time off",
+                hours: Number(task.hours) || null,
+                fullDay: !pickTime(task, "startTime"),
+              });
+            }
+          }
           return {
             resource,
             project: projectName(project),
@@ -322,12 +347,14 @@ export default {
             tentative: isTentative(task),
             sortOrder: sortOrder(task, index),
             order: index,
+            paidTimeOff,
           };
         })
         .filter((row) => row.resource && row.resource !== "Unknown resource" && !/^Person \d+$/i.test(row.resource))
+        .filter((row) => !row.paidTimeOff)
         .filter((row) => !absentPeopleIds.has(String(tasks[row.order]?.people_id)));
 
-      return json({ date, rows, absences }, 200, cacheControl);
+      return json({ date, rows, absences: [...absencesByResource.values()].sort((a, b) => a.resource.localeCompare(b.resource)) }, 200, cacheControl);
     } catch (error) {
       return json({ error: error.message || "Failed to load Float data." }, 502);
     }
