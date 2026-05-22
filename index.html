@@ -75,7 +75,7 @@
     .project-card { border-radius: 8px; border: 1px solid #E8EBF0; overflow: hidden; }
     .project-header { display: flex; align-items: center; gap: 10px; padding: 11px 16px; background: #F7F8FA; cursor: pointer; user-select: none; }
 
-    .resource-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px 16px 10px 20px; border-top: 1px solid #F0F1F4; font-size: 13px; }
+    .resource-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; row-gap: 6px; padding: 10px 16px 10px 20px; border-top: 1px solid #F0F1F4; font-size: 13px; }
     .resource-row.even { background: #fff; }
     .resource-row.odd { background: #FBFCFD; }
 
@@ -84,21 +84,31 @@
     .resource-info { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
     .resource-main { min-width: 0; overflow: hidden; }
     .resource-name, .task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .other-bookings { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; min-width: 0; margin-top: 5px; }
-    .other-bookings.empty .booking-chip { border-color: #E0E4EA; background: #F5F6F8; color: #8A94A6; }
-    .booking-chip {
-      display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 92px;
-      padding: 3px 5px; border-radius: 5px; border: 1px solid;
-      font-size: 8px; font-weight: 700; line-height: 1.15;
+    .booking-timeline { grid-column: 2 / 4; display: flex; align-items: center; width: 100%; min-width: 0; height: 16px; background: #F0F1F4; overflow: hidden; }
+    .booking-segment {
+      height: 16px; min-width: 0; display: flex; align-items: center; gap: 7px;
+      padding: 0 8px; overflow: hidden; color: #fff; font-size: 9px; font-weight: 800;
+      line-height: 1; text-transform: uppercase; letter-spacing: 0.2px;
     }
-    .booking-chip.current { border-color: #1a1a2e; background: #1a1a2e; color: #fff; }
-    .booking-chip.other { opacity: 0.5; }
-    .booking-chip-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-    .booking-chip.current .booking-chip-dot { background: #fff !important; }
-    .booking-chip.current .booking-chip-hours { opacity: 1; color: #fff; }
-    .booking-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .booking-chip-hours { font-family: 'JetBrains Mono', monospace; opacity: 0.72; flex-shrink: 0; }
-    .booking-arrow { width: 10px; height: 10px; color: #C3CAD6; flex-shrink: 0; }
+    .booking-segment.other { opacity: 1; }
+    .booking-segment.current { background: #007A4D !important; color: #fff !important; }
+    .booking-segment.remaining {
+      opacity: 1; color: #A1A9B8; background-color: #F1F3F6;
+      background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgba(150,160,176,0.28) 5px 7px);
+    }
+    .booking-segment-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: currentColor; opacity: 0.85; }
+    .booking-segment.current .booking-segment-dot { background: #fff; opacity: 1; }
+    .booking-segment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+    .booking-segment-hours { margin-left: auto; font-family: 'JetBrains Mono', monospace; flex: 0 0 auto; min-width: max-content; position: relative; z-index: 1; }
+    .booking-segment::after {
+      content: attr(data-tip); position: fixed; z-index: 300; left: var(--tip-x, 50%); top: var(--tip-y, 0);
+      transform: translate(-50%, calc(-100% - 10px)); max-width: 280px; padding: 8px 10px 8px 12px;
+      border-radius: 7px; background: var(--tip-color, #1a1a2e); border: 1px solid var(--tip-color, #1a1a2e);
+      box-shadow: 0 10px 28px rgba(26,26,46,0.18); color: var(--tip-text, #fff);
+      font-size: 12px; font-weight: 700; line-height: 1.35; text-transform: none; letter-spacing: 0;
+      white-space: pre; pointer-events: none; opacity: 0; visibility: hidden;
+    }
+    .booking-segment:hover::after { opacity: 1; visibility: visible; }
     .tentative-badge {
       display: inline-flex; align-items: center; height: 16px; padding: 0 6px;
       border-radius: 5px; border: 1px solid #9333EA; background: transparent; color: #7E22CE;
@@ -137,7 +147,9 @@
       margin-bottom: 18px; padding: 12px 14px; border-radius: 10px;
       background: #F7F8FA; border: 1px solid #E8EBF0;
     }
+    .absence-panel.sick { background: #FFF7ED; border-color: #FED7AA; }
     .absence-title { font-size: 11px; font-weight: 700; color: #8892A4; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .absence-panel.sick .absence-title { color: #C2410C; }
     .absence-list { display: flex; flex-wrap: wrap; gap: 7px; }
     .absence-chip {
       display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px;
@@ -167,6 +179,7 @@
       .toolbar { grid-template-columns: 1fr; }
       .stats-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
       .resource-row { grid-template-columns: 76px 1fr auto; align-items: flex-start; }
+      .booking-timeline { grid-column: 2 / -1; }
       .notes-panel { padding-left: 104px; }
     }
   </style>
@@ -194,7 +207,7 @@
 
 <script>
 let S = {
-  rows: [], absences: [], nested: [], loading: false, error: null,
+  rows: [], absences: [], sickLeaves: [], nested: [], loading: false, error: null,
   lastUpdated: null, collapsed: {}, notes: {},
   query: '',
   date: today(),
@@ -216,6 +229,9 @@ const MOCK = [
 ];
 const MOCK_ABSENCES = [
   { resource:"Niels Hendriks", reason:"Paid time off", hours:8, fullDay:true },
+];
+const MOCK_SICK_LEAVES = [
+  { resource:"Eva Visser", reason:"Sick leave", hours:8, fullDay:true },
 ];
 
 const OC = [
@@ -239,13 +255,15 @@ function fmtTR(s,e,h){if(!s)return null;const end=e||endFromHours(s,h);return en
 function hasN(n){return n&&n!=='—'&&n.trim().length>0;}
 function sortT(r){const a=r.filter(x=>x.startTime),b=r.filter(x=>!x.startTime);a.sort((x,y)=>t2m(x.startTime)-t2m(y.startTime));return[...a,...b];}
 function knownResource(row){const r=String(row.resource||'').trim();return r&&r!=='Unknown resource'&&!/^Person \d+$/i.test(r)&&!/^Unknown/i.test(r);}
-function paidTimeOffText(row){return [row.project,row.taskName,row.notes,row.type,row.reason,row.status,row.name,row.timeoffType].some(v=>/\bpaid\s*time\s*off\b|\bpto\b/i.test(String(v||'')));}
-function detectedPaidTimeOffAbsences(){const map=new Map(S.absences.map(a=>[String(a.resource||'').trim(),a]));S.rows.filter(r=>knownResource(r)&&paidTimeOffText(r)).forEach(r=>{const name=String(r.resource||'').trim();if(!map.has(name))map.set(name,{resource:name,reason:'Paid time off',hours:Number(r.hours)||null});});return [...map.values()].sort((a,b)=>String(a.resource).localeCompare(String(b.resource)));}
-function absentResourceNames(){return new Set(detectedPaidTimeOffAbsences().map(a=>String(a.resource||'').trim()).filter(Boolean));}
-function visibleRows(){const absent=absentResourceNames();return S.rows.filter(r=>knownResource(r)&&!paidTimeOffText(r)&&!absent.has(String(r.resource||'').trim()));}
+function timeOffText(row){return [row.project,row.taskName,row.notes,row.type,row.reason,row.status,row.name,row.timeoffType].some(v=>/\btime\s*off\b|\bleave\b|\bpto\b|\bsick\b/i.test(String(v||'')));}
+function sickText(row){return [row.project,row.taskName,row.notes,row.type,row.reason,row.status,row.name,row.timeoffType].some(v=>/\bsick\b/i.test(String(v||'')));}
+function detectedAbsences(){const map=new Map(S.absences.map(a=>[String(a.resource||'').trim(),a]));S.rows.filter(r=>knownResource(r)&&timeOffText(r)&&!sickText(r)).forEach(r=>{const name=String(r.resource||'').trim();if(!map.has(name))map.set(name,{resource:name,reason:r.reason||'Time off',hours:Number(r.hours)||null});});return [...map.values()].sort((a,b)=>String(a.resource).localeCompare(String(b.resource)));}
+function detectedSickLeaves(){const map=new Map(S.sickLeaves.map(a=>[String(a.resource||'').trim(),a]));S.rows.filter(r=>knownResource(r)&&sickText(r)).forEach(r=>{const name=String(r.resource||'').trim();if(!map.has(name))map.set(name,{resource:name,reason:'Sick leave',hours:Number(r.hours)||null});});return [...map.values()].sort((a,b)=>String(a.resource).localeCompare(String(b.resource)));}
+function absentResourceNames(){return new Set([...detectedAbsences(),...detectedSickLeaves()].map(a=>String(a.resource||'').trim()).filter(Boolean));}
+function visibleRows(){const absent=absentResourceNames();return S.rows.filter(r=>knownResource(r)&&!timeOffText(r)&&!absent.has(String(r.resource||'').trim()));}
 function withOrder(rows){return rows.map((r,i)=>({...r,order:Number.isFinite(Number(r.order))?Number(r.order):i}));}
 function matchesQuery(row,q){if(!q)return true;return [row.project,row.resource].some(v=>String(v||'').toLowerCase().includes(q));}
-function filterRows(rows){const q=S.query.trim().toLowerCase();const absent=absentResourceNames();return rows.filter(r=>knownResource(r)&&!paidTimeOffText(r)&&!absent.has(String(r.resource||'').trim())&&matchesQuery(r,q));}
+function filterRows(rows){const q=S.query.trim().toLowerCase();const absent=absentResourceNames();return rows.filter(r=>knownResource(r)&&!timeOffText(r)&&!absent.has(String(r.resource||'').trim())&&matchesQuery(r,q));}
 function nest(rows){const om={};rows.forEach(r=>{if(!om[r.owner])om[r.owner]={name:r.owner,projects:{},th:0};const o=om[r.owner];o.th+=Number(r.hours)||0;if(!o.projects[r.project])o.projects[r.project]={name:r.project,res:[],th:0};const p=o.projects[r.project];p.th+=Number(r.hours)||0;p.res.push(r);});return Object.values(om).map(o=>({...o,projects:Object.values(o.projects).map(p=>({...p,res:sortT(p.res)}))}));}
 function mockMode(){return window.location.protocol==='file:'||new URLSearchParams(window.location.search).has('mock');}
 function live(){return !mockMode();}
@@ -263,28 +281,36 @@ function dayBookingsFor(row){
 }
 function renderDayTimeline(row){
   const bookings=dayBookingsFor(row);
-  const hasOther=bookings.some(b=>b!==row&&b.project!==row.project);
+  const workdayHours=8;
+  const usedHours=bookings.reduce((s,b)=>s+(Number(b.hours)||0),0);
   const labels=bookings.map((b,idx)=>{
     const c=chipColors(b);
     const current=b===row;
-    const detail=`${fmtTR(b.startTime,b.endTime,b.hours)||'All day'} · ${b.taskName||'Booking'} (${b.hours||0}h)`;
-    const chip=`<div class="booking-chip ${current?'current':'other'}" title="${html(detail)}" ${current?'':`style="border-color:${c.border};background:${c.bg};color:${c.text};"`}>
-      <span class="booking-chip-dot" style="background:${c.dot};"></span>
-      <span class="booking-chip-name">${current?'This project':html(b.project||'Untitled project')}</span>
-      <span class="booking-chip-hours">${Number(b.hours)||0}h</span>
+    const detail=`${current?'This project':b.project||'Untitled project'}\n${Number(b.hours)||0}h${fmtTR(b.startTime,b.endTime,b.hours)?` · ${fmtTR(b.startTime,b.endTime,b.hours)}`:''}`;
+    const width=Math.max((Number(b.hours)||0)/workdayHours*100,3);
+    const tipColor=current?'#007A4D':(projectHex(b)||c.bg);
+    const tipText=textForBg(tipColor)||'#fff';
+    const compact=width<18;
+    return `<div class="booking-segment ${current?'current':'other'}" data-tip="${html(detail)}" onmousemove="moveTip(event,this)" style="--tip-color:${tipColor};--tip-text:${tipText};flex:0 0 ${width}%;${current?'':`background:${c.bg};color:${c.text};`}">
+      <span class="booking-segment-dot"></span>
+      <span class="booking-segment-name">${compact?'':current?'This project':html(b.project||'Untitled project')}</span>
+      <span class="booking-segment-hours">${Number(b.hours)||0}h</span>
     </div>`;
-    if(idx===0)return chip;
-    return `<svg class="booking-arrow" viewBox="0 0 10 10" fill="none"><path d="M2 5h5M5.5 3L7.5 5 5.5 7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>${chip}`;
   }).join('');
-  return `<div class="other-bookings ${hasOther?'':'empty'}">${labels}</div>`;
+  const remaining=Math.max(workdayHours-usedHours,0);
+  const remainingLabel=remaining?`<div class="booking-segment remaining" data-tip="${html(`Available\n${remaining}h left`)}" onmousemove="moveTip(event,this)" style="--tip-color:#C3CAD6;flex:0 0 ${remaining/workdayHours*100}%;">
+    <span class="booking-segment-name">${remaining}h not booked</span>
+  </div>`:'';
+  return `<div class="booking-timeline" aria-label="Daily booking timeline">${labels}${remainingLabel}</div>`;
 }
 
 function openSettings(){document.getElementById('settingsModal').classList.add('open');}
 function closeSettings(){document.getElementById('settingsModal').classList.remove('open');}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
+function moveTip(ev,el){el.style.setProperty('--tip-x',`${ev.clientX}px`);el.style.setProperty('--tip-y',`${ev.clientY}px`);}
 
 async function fetchData(force=false){
-  if(!live()){S.rows=withOrder(MOCK);S.absences=MOCK_ABSENCES;S.nested=nest(visibleRows());S.lastUpdated=new Date();S.error=null;render();return;}
+  if(!live()){S.rows=withOrder(MOCK);S.absences=MOCK_ABSENCES;S.sickLeaves=MOCK_SICK_LEAVES;S.nested=nest(visibleRows());S.lastUpdated=new Date();S.error=null;render();return;}
   S.loading=true;S.error=null;render();
   try{
     const u=new URL('/api/float',window.location.origin);
@@ -296,7 +322,7 @@ async function fetchData(force=false){
     const r=await fetch(u,{cache:force?'no-store':'default',headers:force?{'Cache-Control':'no-cache','Pragma':'no-cache'}:{}});
     const j=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);
-    S.rows=withOrder(j.rows||[]);S.absences=j.absences||[];S.nested=nest(visibleRows());S.lastUpdated=new Date();
+    S.rows=withOrder(j.rows||[]);S.absences=j.absences||[];S.sickLeaves=j.sickLeaves||[];S.nested=nest(visibleRows());S.lastUpdated=new Date();
   }
   catch(e){S.error=e.message;}
   finally{S.loading=false;render();}
@@ -360,11 +386,18 @@ function render(){
     <input class="date-picker" type="date" value="${html(S.date)}" onchange="setDate(this.value)" title="Select date" />
   </div>`;
 
-  const absences=detectedPaidTimeOffAbsences();
+  const absences=detectedAbsences();
+  const sickLeaves=detectedSickLeaves();
   if(absences.length){
     h+=`<div class="absence-panel">
       <div class="absence-title">Not present today</div>
       <div class="absence-list">${absences.map(a=>`<div class="absence-chip">${html(a.resource)}<span>${html(a.reason||'Paid time off')}${a.hours?` · ${html(a.hours)}h`:''}</span></div>`).join('')}</div>
+    </div>`;
+  }
+  if(sickLeaves.length){
+    h+=`<div class="absence-panel sick">
+      <div class="absence-title">Sick leave</div>
+      <div class="absence-list">${sickLeaves.map(a=>`<div class="absence-chip">${html(a.resource)}<span>${html(a.reason||'Sick leave')}${a.hours?` · ${html(a.hours)}h`:''}</span></div>`).join('')}</div>
     </div>`;
   }
 
@@ -412,11 +445,12 @@ function render(){
 
             h+=`<div><div class="resource-row ${ri%2===0?'even':'odd'}">`;
             h+=`<div class="time-col">${tr?`<div class="mono" style="font-size:11px;font-weight:500;color:${c.a};line-height:1.4;">${tr}</div>`:`<div style="font-size:10px;font-weight:600;color:#C4CAD8;text-transform:uppercase;letter-spacing:0.4px;">All day</div>`}</div>`;
-            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}${r.tentative?'<span class="tentative-badge">Tentative</span>':''}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div>${renderDayTimeline(r)}</div></div>`;
+            h+=`<div class="resource-info"><div class="res-avatar">${html(ini(r.resource))}</div><div class="resource-main"><div class="resource-name" style="font-weight:600;color:#2D3340;">${html(r.resource)}${r.tentative?'<span class="tentative-badge">Tentative</span>':''}</div><div class="task-name" style="font-size:12px;color:#6B7489;margin-top:1px;">${html(r.taskName)}</div></div></div>`;
             h+=`<div style="margin-left:8px;width:28px;display:flex;justify-content:center;">`;
             if(sn) h+=`<button class="notes-btn" onclick="toggleN('${esc(nk)}',event)" title="${no?'Hide notes':'Show notes'}" style="border:1.5px solid ${no?c.a:'#D8DCE4'};background:${no?c.a+'0D':'transparent'};color:${no?c.a:'#9CA3B4'};"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3.5 2.5h7a1 1 0 011 1v7a1 1 0 01-1 1h-7a1 1 0 01-1-1v-7a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2"/><path d="M5 5.5h4M5 7.5h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>`;
             h+=`</div>`;
             h+=`<div class="hours-badge mono" style="color:${c.a};background:${c.a}11;">${r.hours}h</div>`;
+            h+=renderDayTimeline(r);
             h+=`</div>`;
             if(no&&sn) h+=`<div class="notes-panel" style="background:${ri%2===0?'#fff':'#FBFCFD'};"><div class="notes-content" style="border-left:3px solid ${c.a}44;">${html(r.notes)}</div></div>`;
             h+=`</div>`;
