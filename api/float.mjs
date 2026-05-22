@@ -340,11 +340,13 @@ export default {
       const sickLeavesByResource = new Map();
       timeoffs
         .map((timeoff) => {
-          const type = timeoffTypesById[String(timeoffTypeId(timeoff))];
+          const typeId = timeoffTypeId(timeoff);
+          const type = timeoffTypesById[String(typeId)];
           const person = peopleById[String(timeoff.people_id)];
           return {
             resource: displayName(person),
             reason: timeoffLabel(timeoff, type),
+            timeoff_type_id: typeId,
             hours: timeoff.full_day ? null : Number(timeoff.hours) || null,
             fullDay: timeoff.full_day === 1 || timeoff.full_day === true,
             sick: isSickLeave(timeoff, type),
