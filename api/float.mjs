@@ -24,6 +24,10 @@ function displayName(person) {
   );
 }
 
+function isArchivedPerson(person) {
+  return person?.archived === 1 || person?.archived === true || person?.active === 0;
+}
+
 function avatarUrl(person) {
   if (!person) return null;
   const avatarFile = person.avatar_file;
@@ -353,6 +357,7 @@ export default {
             return {
               resource: displayName(person),
               people_id: Number(peopleId),
+              archived: isArchivedPerson(person),
               reason: timeoffLabel(timeoff, type),
               timeoff_type_id: typeId,
               timeoff,
@@ -363,7 +368,7 @@ export default {
             };
           });
         })
-        .filter((absence) => absence.resource && absence.resource !== "Unknown resource" && !/^Person \d+$/i.test(absence.resource))
+        .filter((absence) => !absence.archived && absence.resource && absence.resource !== "Unknown resource" && !/^Person \d+$/i.test(absence.resource))
         .forEach((absence) => {
           const target = absence.sick ? sickLeavesByResource : absencesByResource;
           const existing = target.get(absence.resource);
