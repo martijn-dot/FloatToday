@@ -107,11 +107,6 @@
     .booking-label-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--project-color, currentColor); opacity: 1; }
     .booking-label-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .booking-label-hours { margin-left: 5px; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
-    .booking-anytime {
-      position: absolute; left: 0; top: 17px; color: #A1A9B8;
-      font-size: 6.6px; font-weight: 800; letter-spacing: 0.15px;
-      text-transform: uppercase; white-space: nowrap;
-    }
     .booking-label.remaining-label { justify-content: flex-end; gap: 5px; }
     .booking-label.remaining-label .booking-label-name { flex: 0 1 auto; }
     .booking-label.remaining-label .booking-label-hours { margin-left: 5px; }
@@ -368,7 +363,6 @@ function renderDayTimeline(row){
       <span class="booking-label-dot"></span>
       <span class="booking-label-name">${compact?'':html(b.project||'Untitled project')}</span>
       <span class="booking-label-hours">${Number(b.hours)||0}h</span>
-      ${b.startTime?'':'<span class="booking-anytime">Can be done anytime, but before EOD</span>'}
     </div>`);
   });
   const remaining=onlyCurrent?0:Math.max(workdayHours-usedHours,0);
