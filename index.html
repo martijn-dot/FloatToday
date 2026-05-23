@@ -85,9 +85,9 @@
     .resource-info { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
     .resource-main { min-width: 0; overflow: hidden; }
     .resource-name, .task-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .booking-timeline { grid-column: 2 / 4; position: relative; width: 100%; min-width: 0; height: 36px; padding-top: 28px; background: transparent; }
+    .booking-timeline { grid-column: 2 / 4; position: relative; width: 100%; min-width: 0; height: 48px; padding-top: 30px; background: transparent; }
     .booking-track { display: flex; align-items: center; gap: 10px; width: 100%; height: 4px; background: #F0F1F4; overflow: hidden; border-radius: 999px; }
-    .booking-labels { position: absolute; inset: 0 0 auto 0; height: 26px; pointer-events: none; }
+    .booking-labels { position: absolute; inset: 0 0 auto 0; height: 48px; pointer-events: none; }
     .booking-segment {
       height: 4px; min-width: 0; overflow: visible; color: #fff;
     }
@@ -98,17 +98,17 @@
       background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(150,160,176,0.32) 4px 6px);
     }
     .booking-label { 
-      position: absolute; top: 0; left: var(--label-left, 0); width: var(--label-width, auto);
-      height: 14px; display: flex; align-items: center; gap: 5px; min-width: 0;
+      position: absolute; top: 18px; left: var(--label-left, 0); width: var(--label-width, auto);
+      height: 10px; display: flex; align-items: center; gap: 5px; min-width: 0;
       color: rgba(138,148,166,0.7); font-size: 8.64px; font-weight: 800; line-height: 1;
-      text-transform: uppercase; letter-spacing: 0.2px; overflow: hidden;
+      text-transform: uppercase; letter-spacing: 0.2px; overflow: visible;
       pointer-events: auto;
     }
     .booking-label-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--project-color, currentColor); opacity: 1; }
     .booking-label-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .booking-label-hours { margin-left: 5px; flex-shrink: 0; font-family: 'JetBrains Mono', monospace; }
     .booking-anytime {
-      position: absolute; left: 0; top: 15px; color: #A1A9B8;
+      position: absolute; left: 0; top: 17px; color: #A1A9B8;
       font-size: 6.6px; font-weight: 800; letter-spacing: 0.15px;
       text-transform: uppercase; white-space: nowrap;
     }
@@ -310,14 +310,15 @@ function colorForKey(k){let h=0;String(k||'').split('').forEach(ch=>h=(h*31+ch.c
 function projectHex(row){const raw=String(row.projectColor||'').replace('#','').trim();return /^[0-9a-f]{6}$/i.test(raw)?`#${raw}`:null;}
 function textForBg(hex){if(!hex)return null;const n=parseInt(hex.slice(1),16);const r=(n>>16)&255,g=(n>>8)&255,b=n&255;return ((r*299+g*587+b*114)/1000)>150?'#1a1a2e':'#fff';}
 function chipColors(row){const hex=projectHex(row);if(hex)return{bg:hex,border:hex,text:textForBg(hex),dot:textForBg(hex)};const c=colorForKey(row.project);return{bg:c.bg,border:`${c.a}33`,text:c.t,dot:c.a};}
+function timelineOrder(row){const v=row.sortOrder??row.order;return Number.isFinite(Number(v))?Number(v):0;}
 function dayBookingsFor(row){
   return visibleRows()
     .filter(x=>x.resource===row.resource)
     .sort((a,b)=>{
-      if(a.startTime&&b.startTime)return t2m(a.startTime)-t2m(b.startTime)||Number(a.order)-Number(b.order);
+      if(a.startTime&&b.startTime)return t2m(a.startTime)-t2m(b.startTime)||timelineOrder(a)-timelineOrder(b);
       if(a.startTime&&!b.startTime)return -1;
       if(!a.startTime&&b.startTime)return 1;
-      return Number(a.order)-Number(b.order);
+      return timelineOrder(a)-timelineOrder(b);
     });
 }
 function dayPartFor(row){

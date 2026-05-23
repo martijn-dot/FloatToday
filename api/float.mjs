@@ -13,6 +13,62 @@ function validDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value || "");
 }
 
+function dayValue(value) {
+  if (!validDate(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+}
+
+function addMonths(value, months) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1 + months, day));
+  return date.toISOString().slice(0, 10);
+}
+
+function inDateRange(date, startDate, endDate) {
+  const target = dayValue(date);
+  const start = dayValue(startDate);
+  const end = dayValue(endDate || startDate);
+  return target !== null && start !== null && end !== null && target >= start && target <= end;
+}
+
+function repeatedTimeoffMatchesDate(timeoff, date) {
+  const repeatState = Number(timeoff?.repeat_state || 0);
+  const startDate = timeoff?.start_date;
+  const endDate = timeoff?.end_date || startDate;
+  if (!repeatState) return inDateRange(date, startDate, endDate);
+  if (!validDate(startDate) || !validDate(date)) return false;
+  if (validDate(timeoff?.repeat_end) && dayValue(date) > dayValue(timeoff.repeat_end)) return false;
+
+  const startDay = dayValue(startDate);
+  const targetDay = dayValue(date);
+  const durationDays = Math.max(dayValue(endDate) - startDay, 0);
+  if (targetDay < startDay) return false;
+
+  const dayPeriods = { 1: 7, 3: 14, 4: 21, 5: 42 };
+  if (dayPeriods[repeatState]) {
+    return (targetDay - startDay) % dayPeriods[repeatState] <= durationDays;
+  }
+
+  const monthPeriods = { 2: 1, 6: 2, 7: 3, 8: 6, 9: 12 };
+  const monthPeriod = monthPeriods[repeatState];
+  if (!monthPeriod) return false;
+  const [startYear, startMonth] = startDate.split("-").map(Number);
+  const [targetYear, targetMonth] = date.split("-").map(Number);
+  const monthsSinceStart = (targetYear - startYear) * 12 + (targetMonth - startMonth);
+  const baseMonths = Math.floor(monthsSinceStart / monthPeriod) * monthPeriod;
+  return [baseMonths, baseMonths - monthPeriod].some((months) => {
+    if (months < 0) return false;
+    const occurrenceStart = addMonths(startDate, months);
+    const occurrenceEnd = addMonths(endDate, months);
+    return inDateRange(date, occurrenceStart, occurrenceEnd);
+  });
+}
+
+function timeoffMatchesDate(timeoff, date) {
+  return repeatedTimeoffMatchesDate(timeoff, date);
+}
+
 function displayName(person) {
   if (!person) return "Unknown resource";
   return (
@@ -333,10 +389,11 @@ export default {
         start_date: date,
         end_date: date,
       });
+      const matchingTimeoffs = timeoffs.filter((timeoff) => timeoffMatchesDate(timeoff, date));
       const timeoffTypes = await optionalFetchAll("/timeoff-types", token);
       const timeoffTypesById = mapById(timeoffTypes, ["timeoff_type_id", "type_id", "id"]);
-      const timeoffPersonIds = timeoffs.flatMap(timeoffPeopleIds);
-      const absentPeopleIds = new Set(timeoffPersonIds);
+      const timeoffPersonIds = matchingTimeoffs.flatMap(timeoffPeopleIds);
+      const absentPeopleIds = new Set();
 
       const projectsById = await lookupById("/projects", token, tasks.map((task) => task.project_id));
       const accounts = await floatFetchAll("/accounts", token);
@@ -348,7 +405,7 @@ export default {
       ]);
       const absencesByResource = new Map();
       const sickLeavesByResource = new Map();
-      timeoffs
+      matchingTimeoffs
         .flatMap((timeoff) => {
           const typeId = timeoffTypeId(timeoff);
           const type = timeoffTypesById[String(typeId)];
@@ -370,6 +427,7 @@ export default {
         })
         .filter((absence) => !absence.archived && absence.resource && absence.resource !== "Unknown resource" && !/^Person \d+$/i.test(absence.resource))
         .forEach((absence) => {
+          absentPeopleIds.add(String(absence.people_id));
           const target = absence.sick ? sickLeavesByResource : absencesByResource;
           const existing = target.get(absence.resource);
           if (!existing) {
@@ -426,11 +484,16 @@ export default {
         absences: [...absencesByResource.values()].sort((a, b) => a.resource.localeCompare(b.resource)),
         sickLeaves: [...sickLeavesByResource.values()].sort((a, b) => a.resource.localeCompare(b.resource)),
         debug: url.searchParams.get("debug") === "1" ? {
-          timeoffCount: timeoffs.length,
+          timeoffCount: matchingTimeoffs.length,
+          rawTimeoffCount: timeoffs.length,
           timeoffKeys: [...new Set(timeoffs.flatMap((timeoff) => Object.keys(timeoff || {})))],
-          timeoffSamples: timeoffs.slice(0, 3).map((timeoff) => ({
+          timeoffSamples: matchingTimeoffs.slice(0, 3).map((timeoff) => ({
             people_ids: timeoffPeopleIds(timeoff),
             timeoff_type_id: timeoffTypeId(timeoff),
+            start_date: timeoff.start_date,
+            end_date: timeoff.end_date,
+            repeat_state: timeoff.repeat_state,
+            repeat_end: timeoff.repeat_end,
             label: timeoffLabel(timeoff, timeoffTypesById[String(timeoffTypeId(timeoff))]),
             sick: isSickLeave(timeoff, timeoffTypesById[String(timeoffTypeId(timeoff))]),
             keys: Object.keys(timeoff || {}),
